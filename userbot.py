@@ -8,7 +8,8 @@ import json
 
 # --- CONFIGURATION ---
 BOT_TOKEN = '8667746280:AAFb5oMGFVREoVR5H58TpAbpTho7DEWSOcc'
-API_URL = "https://tgchatid.vercel.app/api/lookup?number" 
+# Updated API URL - No API Key needed
+API_URL = "https://tgchatid.vercel.app/api/lookup"
 OWNER_ID = 8442352135 
 
 # --- FORCE JOIN CONFIG ---
@@ -277,5 +278,5 @@ def verify_callback(call):
         bot.answer_callback_query(call.id, "❌ Join all channels first!", show_alert=True)
 
 if __name__ == "__main__":
-    bot.infinity_polling(timeout=90, long_polling_timeout=90)
-    
+    bot.infinity_polling()
+            
