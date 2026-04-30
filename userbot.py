@@ -277,4 +277,5 @@ def verify_callback(call):
         bot.answer_callback_query(call.id, "❌ Join all channels first!", show_alert=True)
 
 if __name__ == "__main__":
-    bot.infinity_polling()
+    bot.infinity_polling(timeout=90, long_polling_timeout=90)
+    
