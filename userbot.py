@@ -8,7 +8,7 @@ import json
 
 # --- CONFIGURATION ---
 BOT_TOKEN = '8667746280:AAFb5oMGFVREoVR5H58TpAbpTho7DEWSOcc'
-API_URL = "https://tgchatid.vercel.app/api/lookup"
+API_BASE_URL = "https://abhigyan-codes-tg-to-number-api.onrender.com/@abhigyan_codes/userid="
 OWNER_ID = 8442352135 
 
 # --- FORCE JOIN CONFIG ---
