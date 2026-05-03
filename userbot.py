@@ -292,11 +292,11 @@ def verify_callback(call):
         bot.answer_callback_query(call.id, "❌ Join all channels first!", show_alert=True)
 
 if __name__ == "__main__":
-    # Robust polling for Railway
     while True:
         try:
-            bot.infinity_polling(timeout=60, long_polling_timeout=60, skip_pending_updates=True)
+            # Removed the problematic argument to support older versions
+            bot.infinity_polling(timeout=60, long_polling_timeout=60)
         except Exception as e:
             print(f"Polling error: {e}")
             time.sleep(5)
-        
+            
