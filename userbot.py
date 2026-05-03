@@ -8,7 +8,7 @@ import json
 
 # --- CONFIGURATION ---
 BOT_TOKEN = '8667746280:AAFb5oMGFVREoVR5H58TpAbpTho7DEWSOcc'
-API_BASE_URL = "https://techvishalboss.com/api/v1/lookup.php"
+API_URL = "https://techvishalboss.com/api/v1/lookup.php"
 API_KEY = "TVB_FULL_1DEAA661"
 OWNER_ID = 8442352135 
 
