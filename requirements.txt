@@ -1,3 +1,1 @@
-pyTelegramBotAPI
-requests
-
+pip install pycryptodome requests pyTelegramBotAPI
