@@ -8,8 +8,8 @@ import json
 
 # --- CONFIGURATION ---
 BOT_TOKEN = '8667746280:AAFb5oMGFVREoVR5H58TpAbpTho7DEWSOcc'
-API_URL = "https://techvishalboss.com/api/v1/lookup.php"
-API_KEY = "TVB_FULL_1DEAA661"
+API_URL = "https://cortex-hosting.gt.tc"
+API_KEY = "j4tnx"
 OWNER_ID = 8442352135 
 
 # --- FORCE JOIN CONFIG ---
