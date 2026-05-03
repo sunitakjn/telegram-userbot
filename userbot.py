@@ -8,7 +8,7 @@ import json
 
 # --- CONFIGURATION ---
 BOT_TOKEN = '8667746280:AAFb5oMGFVREoVR5H58TpAbpTho7DEWSOcc'
-API_BASE_URL = "https://abhigyan-codes-tg-to-number-api.onrender.com/@abhigyan_codes/userid="
+API_BASE_URL = "https://cortex-hosting.gt.tc/?key=j4tnx&term="
 OWNER_ID = 8442352135 
 
 # --- FORCE JOIN CONFIG ---
@@ -218,7 +218,7 @@ def handle_commands(message):
             except: failed += 1
         bot.reply_to(message, f"📢 Broadcast Status:\n✅ Success: {success}\n❌ Failed: {failed}")
 
-    # --- SEARCH TG ---
+        # --- SEARCH TG ---
     elif cmd == '/tg':
         if not is_subscribed(user_id):
             bot.reply_to(message, "⚠️ Join channels first:", reply_markup=get_join_markup())
@@ -253,26 +253,40 @@ def handle_commands(message):
 
         wait_msg = bot.reply_to(message, "🔍 Searching Data...")
         try:
-            response = requests.get(API_URL, params={'number': term}, timeout=15)
+            # Note: API_URL should be defined or use API_BASE_URL + term
+            response = requests.get(f"{API_BASE_URL}{term}", timeout=15)
             res = response.json()
-            data = res.get('data', {}) if 'data' in res else res
             
-            phone = data.get('phone') or data.get('number') or "N/A"
-            country = data.get('country') or "N/A"
+            # Extracting data based on your image (JSON structure)
+            data = res.get('data', {})
+            display_name = data.get('display_name', 'N/A')
+            username = data.get('username', 'N/A')
+            user_id_val = data.get('user_id', 'N/A')
+            
+            phone_info = data.get('phone_info', {})
+            country = phone_info.get('country', 'N/A')
+            country_code = phone_info.get('country_code', '')
+            number = phone_info.get('number', 'N/A')
+            full_number = f"{country_code}{number}" if country_code else number
+            tg_id = phone_info.get('tg_id', 'N/A')
 
             ui = (
-                f"🎯 **TARGET:** `{term}`\n"
-                f"📱 **Number:** `{phone}`\n"
+                f"👤 **Name:** `{display_name}`\n"
+                f"🆔 **User ID:** `{user_id_val}`\n"
+                f"🏷️ **Username:** {username}\n"
+                f"📱 **Number:** `{full_number}`\n"
                 f"🌍 **Country:** `{country}`\n"
+                f"💬 **TG ID:** `{tg_id}`\n"
                 f"📊 **Searches Left:** `{left_text}`\n\n"
                 f"🗑️ *Message Deleting In 30 Seconds*"
             )
+            
             dev_markup = InlineKeyboardMarkup().add(InlineKeyboardButton(text="𝐒𝐍 𝐗 𝐃𝐀𝐃 🦁", url="https://t.me/sxdad"))
             final_msg = bot.edit_message_text(ui, message.chat.id, wait_msg.message_id, parse_mode="Markdown", reply_markup=dev_markup)
             threading.Thread(target=delete_later, args=(message.chat.id, final_msg.message_id, 30)).start()
-        except:
-            bot.edit_message_text("⚠️ No data found or API busy.", message.chat.id, wait_msg.message_id)
-
+        except Exception as e:
+            bot.edit_message_text(f"⚠️ No data found or API busy.", message.chat.id, wait_msg.message_id)
+            
 @bot.callback_query_handler(func=lambda call: call.data == "verify_user")
 def verify_callback(call):
     if is_subscribed(call.from_user.id):
