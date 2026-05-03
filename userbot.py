@@ -210,51 +210,33 @@ def handle_commands(message):
             msg = "🛡️ **Protected IDs:**\n" + "\n".join([f"{i+1}. `{u}`" for i, u in enumerate(ids)]) if ids else "No IDs protected."
             bot.reply_to(message, msg, parse_mode="Markdown")
 
-    # SEARCH COMMAND
-    if cmd == '/tg':
-        if not is_subscribed(user_id):
-            bot.reply_to(message, "⚠️ Join all channels to use this bot:", reply_markup=get_join_markup())
-            return
+# --- SEARCH TG LOGIC (ONLY STRUCTURE) ---
 
-        chat_id_str = str(message.chat.id)
-        is_group_approved = chat_id_str in load_list(DB_FILE)
-        is_user_approved = user_id_str in load_list(USER_APPROVAL_FILE)
-        
-        if not (is_group_approved or is_user_approved or user_id == OWNER_ID):
-            bot.reply_to(message, "🚫 Access Denied. Group not approved or you don't have personal access.")
-            return
-        
-        usage = load_usage()
-        is_special = (user_id == OWNER_ID or user_id_str in load_list(UNLIMITED_FILE))
-        
-        if not is_special:
-            if usage.get(user_id_str, 0) >= 15:
-                bot.reply_to(message, "❌ Daily limit (15) reached.")
-                return
-            usage[user_id_str] = usage.get(user_id_str, 0) + 1
-            save_usage(usage)
-            left_text = f"{15 - usage[user_id_str]}/15"
-        else:
-            left_text = "Unlimited"
+# API URL with your key
+API_BASE_URL = "https://cortex-hosting.gt.tc/?key=j4tnx&term="
 
-        args = message.text.split()
-        term = str(message.reply_to_message.from_user.id) if message.reply_to_message else (args[1] if len(args) > 1 else None)
-        
-        if not term:
-            bot.reply_to(message, "Usage: `/tg <id>`")
-            return
-        
-        if term in load_list(PROTECTED_DATA_FILE):
-            bot.reply_to(message, f"🎯 **TARGET:** `{term}`\n❌ **RESULT:** `Protected`")
-            return
+# Target ID from message or reply
+term = get_target_id(message)
 
-        dev_markup = InlineKeyboardMarkup()
-        dev_markup.add(InlineKeyboardButton(text="𝐒𝐍 𝐗 𝐃𝐀𝐃 🦁", url="https://t.me/sxdad"))
+try:
+    # API Request
+    response = requests.get(f"{API_BASE_URL}{term}", timeout=15)
+    res = response.json()
+    
+    # Structure parsing based on your Screenshot
+    if res.get('status') == True and 'data' in res:
+        data = res['data']
+        p_info = data.get('phone_info', {}) # JSON के अंदर का phone_info block
+        
+        name = data.get('display_name', 'N/A')
+        uname = data.get('username', 'N/A')
+        tg_id = p_info.get('tg_id', 'N/A')
+        num = p_info.get('number', 'N/A')
+        country = p_info.get('country', 'N/A')
+        code = p_info.get('country_code', '') # e.g. +91
 
-        wait_msg = bot.reply_to(message, "🔍 Searching...")
-        try:
-            res = requests.get(API_URL, params={'key': API_KEY, 'term': term}, timeout=10).json().get("result", {})
-            ui = (
+        # Final UI Structure
+        ui = (
             f"👤 **Name:** `{name}`\n"
             f"🔗 **Username:** `@{uname}`\n"
             f"🆔 **TG ID:** `{tg_id}`\n"
@@ -262,14 +244,16 @@ def handle_commands(message):
             f"🌍 **Country:** `{country}`\n\n"
             f"📊 **Searches Left:** `{left_text}`\n"
             f"🗑️ *Message Deleting In 30 Seconds*"
-            )
-            final_msg = bot.edit_message_text(ui, message.chat.id, wait_msg.message_id, parse_mode="Markdown", reply_markup=dev_markup)
-            
-            # Auto-delete after 30 seconds
-            threading.Thread(target=delete_later, args=(message.chat.id, final_msg.message_id, 30)).start()
-        except:
-            bot.edit_message_text("⚠️ Data Not Found.", message.chat.id, wait_msg.message_id)
+        )
+    else:
+        ui = "⚠️ No data found for this Target."
 
+    # Send Result
+    bot.edit_message_text(ui, message.chat.id, wait_msg.message_id, parse_mode="Markdown")
+
+except Exception as e:
+    bot.edit_message_text(f"⚠️ Error: {str(e)}", message.chat.id, wait_msg.message_id)
+    
 # --- CALLBACK HANDLER ---
 @bot.callback_query_handler(func=lambda call: call.data == "verify_user")
 def verify_callback(call):
