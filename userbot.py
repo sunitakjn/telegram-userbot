@@ -218,7 +218,7 @@ def handle_commands(message):
             except: failed += 1
         bot.reply_to(message, f"📢 Broadcast Status:\n✅ Success: {success}\n❌ Failed: {failed}")
 
-        # --- SEARCH TG ---
+         # --- SEARCH TG ---
     elif cmd == '/tg':
         if not is_subscribed(user_id):
             bot.reply_to(message, "⚠️ Join channels first:", reply_markup=get_join_markup())
@@ -252,38 +252,52 @@ def handle_commands(message):
             return
 
         wait_msg = bot.reply_to(message, "🔍 Searching Data...")
-        try:
-            # Note: API_URL should be defined or use API_BASE_URL + term
-            response = requests.get(f"{API_BASE_URL}{term}", timeout=15)
-            res = response.json()
-            
-            # Extracting data based on your image (JSON structure)
-            data = res.get('data', {})
-            display_name = data.get('display_name', 'N/A')
-            username = data.get('username', 'N/A')
-            user_id_val = data.get('user_id', 'N/A')
-            
-            phone_info = data.get('phone_info', {})
-            country = phone_info.get('country', 'N/A')
-            country_code = phone_info.get('country_code', '')
-            number = phone_info.get('number', 'N/A')
-            full_number = f"{country_code}{number}" if country_code else number
-            tg_id = phone_info.get('tg_id', 'N/A')
+        
+        # --- API RETRY LOGIC (To Fix Busy Problem) ---
+        response = None
+        for attempt in range(2): # 2 baar koshish karega agar fail hua
+            try:
+                # Timeout ko 30 rakha hai taaki Render server ko jagne ka time mile
+                response = requests.get(f"{API_BASE_URL}{term}", timeout=30)
+                if response.status_code == 200:
+                    break
+            except:
+                time.sleep(2) # Fail hone par 2 second wait karke fir try karega
+                continue
 
-            ui = (
-                f"👤 **Name:** `{display_name}`\n"
-                f"🆔 **User ID:** `{user_id_val}`\n"
-                f"🏷️ **Username:** {username}\n"
-                f"📱 **Number:** `{full_number}`\n"
-                f"🌍 **Country:** `{country}`\n"
-                f"💬 **TG ID:** `{tg_id}`\n"
-                f"📊 **Searches Left:** `{left_text}`\n\n"
-                f"🗑️ *Message Deleting In 30 Seconds*"
-            )
-            
-            dev_markup = InlineKeyboardMarkup().add(InlineKeyboardButton(text="𝐒𝐍 𝐗 𝐃𝐀𝐃 🦁", url="https://t.me/sxdad"))
-            final_msg = bot.edit_message_text(ui, message.chat.id, wait_msg.message_id, parse_mode="Markdown", reply_markup=dev_markup)
-            threading.Thread(target=delete_later, args=(message.chat.id, final_msg.message_id, 30)).start()
+        try:
+            if response and response.status_code == 200:
+                res = response.json()
+                data = res.get('data', {})
+                
+                # Image ke hisab se exact keys extraction
+                display_name = data.get('display_name', 'N/A')
+                username = data.get('username', 'N/A')
+                user_id_val = data.get('user_id', 'N/A')
+                
+                phone_info = data.get('phone_info', {})
+                country = phone_info.get('country', 'N/A')
+                c_code = phone_info.get('country_code', '')
+                num = phone_info.get('number', 'N/A')
+                full_num = f"{c_code}{num}" if c_code else num
+                tg_id_val = phone_info.get('tg_id', 'N/A')
+
+                ui = (
+                    f"👤 **Name:** `{display_name}`\n"
+                    f"🆔 **User ID:** `{user_id_val}`\n"
+                    f"🏷️ **Username:** {username}\n"
+                    f"📱 **Number:** `{full_num}`\n"
+                    f"🌍 **Country:** `{country}`\n"
+                    f"💬 **TG ID:** `{tg_id_val}`\n"
+                    f"📊 **Searches Left:** `{left_text}`\n\n"
+                    f"🗑️ *Message Deleting In 30 Seconds*"
+                )
+                
+                dev_markup = InlineKeyboardMarkup().add(InlineKeyboardButton(text="𝐒𝐍 𝐗 𝐃𝐀𝐃 🦁", url="https://t.me/sxdad"))
+                final_msg = bot.edit_message_text(ui, message.chat.id, wait_msg.message_id, parse_mode="Markdown", reply_markup=dev_markup)
+                threading.Thread(target=delete_later, args=(message.chat.id, final_msg.message_id, 30)).start()
+            else:
+                bot.edit_message_text("❌ API Busy: Server response nahi de raha. Thodi der baad try karein.", message.chat.id, wait_msg.message_id)
         except Exception as e:
             bot.edit_message_text(f"⚠️ No data found or API busy.", message.chat.id, wait_msg.message_id)
             
