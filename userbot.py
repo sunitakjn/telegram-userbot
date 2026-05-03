@@ -55,10 +55,6 @@ def save_list(file, items_list):
         for item in items_list:
             f.write(f"{item}\n")
 
-def clear_file(file):
-    with open(file, "w") as f:
-        f.truncate(0)
-
 def add_to_list(file, item):
     items = load_list(file)
     if str(item) not in items:
@@ -85,84 +81,39 @@ def load_usage():
 def save_usage(data):
     with open(USAGE_FILE, "w") as f: json.dump(data, f)
 
-def delete_later(chat_id, message_id, delay):
-    time.sleep(delay)
-    try: bot.delete_message(chat_id, message_id)
-    except: pass
-
-def get_chat_display(chat_id):
-    try:
-        chat = bot.get_chat(chat_id)
-        return f"**{chat.title or chat.username}** (`{chat_id}`)"
-    except: return f"`{chat_id}`"
-
 def get_target_id(message):
     args = message.text.split()
     if message.reply_to_message:
         return str(message.reply_to_message.from_user.id)
     return args[1] if len(args) > 1 else None
 
+def delete_later(chat_id, message_id, delay):
+    time.sleep(delay)
+    try: bot.delete_message(chat_id, message_id)
+    except: pass
+
 # --- COMMAND HANDLERS ---
-@bot.message_handler(commands=[
-    'approvegc', 'disapprovegc', 'disapprovegcall', 'listapprovegc', 
-    'approvebot', 'disapprovebot', 'disapprovebotall', 'listapprovebot', 
-    'unprotect', 'protect', 'unprotectall', 'listprotect', 
-    'unlimited', 'disunlimited', 'disunlimitedall', 'listunlimited', 'broadcast'
-])
-def admin_commands(message):
-    cmd = message.text.split()[0].split('@')[0].lower()
-    user_id = message.from_user.id
-    if user_id != OWNER_ID:
-        return bot.reply_to(message, "❌ Only Owner can use this.")
-
-    if cmd == '/broadcast':
-        groups = load_list(DB_FILE)
-        if not groups: return bot.reply_to(message, "❌ No groups.")
-        success, failed = 0, 0
-        for gid in groups:
-            try:
-                if message.reply_to_message:
-                    bot.copy_message(gid, message.chat.id, message.reply_to_message.message_id)
-                else:
-                    txt = message.text[len('/broadcast '):].strip()
-                    if txt: bot.send_message(gid, txt)
-                success += 1
-            except: failed += 1
-        bot.reply_to(message, f"📢 Broadcast: ✅ {success} | ❌ {failed}")
-
-    elif cmd == '/approvegc':
-        if add_to_list(DB_FILE, message.chat.id): bot.reply_to(message, "✅ Group Approved!")
-    
-    elif cmd == '/disapprovegc':
-        if remove_from_list(DB_FILE, message.chat.id): bot.reply_to(message, "🚫 Group Disapproved!")
-
-    elif cmd == '/listapprovegc':
-        groups = load_list(DB_FILE)
-        msg = "🏢 **Groups:**\n" + "\n".join([f"{i+1}. {get_chat_display(g)}" for i, g in enumerate(groups)])
-        bot.reply_to(message, msg or "Empty", parse_mode="Markdown")
-
-    # Add other admin logic (protect/unlimited) here if needed...
 
 @bot.message_handler(commands=['tg'])
-def search_tg(message):
+def search_handler(message):
     user_id = message.from_user.id
     user_id_str = str(user_id)
-    
-    # 1. Check Subscription
+
     if not is_subscribed(user_id):
         bot.reply_to(message, "⚠️ Join channels first:", reply_markup=get_join_markup())
         return
 
-    # 2. Check Access (Group or User)
     is_group_ok = str(message.chat.id) in load_list(DB_FILE)
     is_user_ok = user_id_str in load_list(USER_APPROVAL_FILE)
+    
     if not (is_group_ok or is_user_ok or user_id == OWNER_ID):
-        bot.reply_to(message, "🚫 Access Denied.")
+        bot.reply_to(message, "🚫 Access Denied (Group/User not approved).")
         return
 
-    # 3. Handle Limits
+    # Usage Limits
     usage = load_usage()
     is_special = (user_id == OWNER_ID or user_id_str in load_list(UNLIMITED_FILE))
+    
     if not is_special:
         count = usage.get(user_id_str, 0)
         if count >= 15:
@@ -174,52 +125,72 @@ def search_tg(message):
     else:
         left_text = "Unlimited"
 
-    # 4. Target Logic
     term = get_target_id(message)
     if not term:
-        bot.reply_to(message, "Usage: `/tg <id>`")
+        bot.reply_to(message, "Usage: `/tg <id>` or reply to someone.")
         return
 
     if term in load_list(PROTECTED_DATA_FILE):
-        bot.reply_to(message, f"🛡️ Target `{term}` is Protected.")
+        bot.reply_to(message, "🛡️ Result: `Protected by Admin`")
         return
 
-    wait_msg = bot.reply_to(message, "🔍 Searching...")
-    
+    wait = bot.reply_to(message, "🔍 Searching Data...")
+
     try:
-        response = requests.get(f"{API_BASE_URL}{term}", timeout=15)
-        res = response.json()
-        
-        if res.get('status') == True and 'data' in res:
+        res = requests.get(f"{API_BASE_URL}{term}", timeout=15).json()
+        if res.get('status'):
             data = res['data']
-            p_info = data.get('phone_info', {})
-            
+            p = data.get('phone_info', {})
             ui = (
                 f"👤 **Name:** `{data.get('display_name', 'N/A')}`\n"
                 f"🔗 **Username:** `@{data.get('username', 'N/A')}`\n"
-                f"🆔 **TG ID:** `{p_info.get('tg_id', 'N/A')}`\n"
-                f"📱 **Number:** `{p_info.get('country_code', '')}{p_info.get('number', 'N/A')}`\n"
-                f"🌍 **Country:** `{p_info.get('country', 'N/A')}`\n\n"
+                f"🆔 **TG ID:** `{p.get('tg_id', 'N/A')}`\n"
+                f"📱 **Number:** `{p.get('country_code', '')}{p.get('number', 'N/A')}`\n"
+                f"🌍 **Country:** `{p.get('country', 'N/A')}`\n\n"
                 f"📊 **Searches Left:** `{left_text}`\n"
                 f"🗑️ *Deleting in 30s*"
             )
-            dev_markup = InlineKeyboardMarkup().add(InlineKeyboardButton(text="𝐒𝐍 𝐗 𝐃𝐀𝐃 🦁", url="https://t.me/sxdad"))
-            final_msg = bot.edit_message_text(ui, message.chat.id, wait_msg.message_id, parse_mode="Markdown", reply_markup=dev_markup)
-            threading.Thread(target=delete_later, args=(message.chat.id, final_msg.message_id, 30)).start()
+            markup = InlineKeyboardMarkup().add(InlineKeyboardButton("𝐒𝐍 𝐗 𝐃𝐀𝐃 🦁", url="https://t.me/sxdad"))
+            msg = bot.edit_message_text(ui, message.chat.id, wait.message_id, parse_mode="Markdown", reply_markup=markup)
+            threading.Thread(target=delete_later, args=(message.chat.id, msg.message_id, 30)).start()
         else:
-            bot.edit_message_text("⚠️ No data found.", message.chat.id, wait_msg.message_id)
-    except Exception as e:
-        bot.edit_message_text(f"⚠️ API Error.", message.chat.id, wait_msg.message_id)
+            bot.edit_message_text("⚠️ No data found.", message.chat.id, wait.message_id)
+    except:
+        bot.edit_message_text("⚠️ API Error.", message.chat.id, wait.message_id)
+
+@bot.message_handler(func=lambda m: m.from_user.id == OWNER_ID, commands=[
+    'approvegc', 'disapprovegc', 'listapprovegc', 'protect', 'unprotect', 
+    'unlimited', 'disunlimited', 'approvebot', 'disapprovebot'
+])
+def admin_tools(message):
+    cmd = message.text.split()[0].lower()
+    tid = get_target_id(message)
+
+    if 'approvegc' in cmd:
+        if add_to_list(DB_FILE, message.chat.id): bot.reply_to(message, "✅ GC Approved.")
+    elif 'protect' in cmd and tid:
+        if add_to_list(PROTECTED_DATA_FILE, tid): bot.reply_to(message, f"🛡️ `{tid}` Protected.")
+    elif 'unlimited' in cmd and tid:
+        if add_to_list(UNLIMITED_FILE, tid): bot.reply_to(message, f"🚀 `{tid}` is Unlimited.")
+    elif 'approvebot' in cmd and tid:
+        if add_to_list(USER_APPROVAL_FILE, tid): bot.reply_to(message, f"👤 `{tid}` Personal Access ON.")
+    # You can add more admin logic here as per the same pattern
 
 @bot.callback_query_handler(func=lambda call: call.data == "verify_user")
-def verify_callback(call):
+def verify(call):
     if is_subscribed(call.from_user.id):
         bot.answer_callback_query(call.id, "✅ Verified!")
         bot.delete_message(call.message.chat.id, call.message.message_id)
     else:
         bot.answer_callback_query(call.id, "❌ Join all channels first!", show_alert=True)
 
+# --- FIXED POLLING FOR RAILWAY ---
 if __name__ == "__main__":
-    print("Bot started...")
-    bot.infinity_polling()
-    
+    print("Bot is Alive...")
+    while True:
+        try:
+            bot.polling(none_stop=True, interval=0, timeout=20)
+        except Exception as e:
+            print(f"Error: {e}")
+            time.sleep(5)
+            
