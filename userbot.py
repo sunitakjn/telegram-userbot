@@ -8,7 +8,9 @@ import json
 
 # --- CONFIGURATION ---
 BOT_TOKEN = '8667746280:AAFb5oMGFVREoVR5H58TpAbpTho7DEWSOcc'
-API_BASE_URL = "https://cortex-hosting.gt.tc/?key=j4tnx&term="
+API_URL = "https://techvishalboss.com/api/v1/lookup.php"
+API_KEY = "TVB_FULL_1DEAA661"
+SERVICE = "tg_to_number"
 OWNER_ID = 8442352135 
 
 # --- FORCE JOIN CONFIG ---
@@ -55,6 +57,10 @@ def save_list(file, items_list):
         for item in items_list:
             f.write(f"{item}\n")
 
+def clear_file(file):
+    with open(file, "w") as f:
+        f.truncate(0)
+
 def add_to_list(file, item):
     items = load_list(file)
     if str(item) not in items:
@@ -81,116 +87,196 @@ def load_usage():
 def save_usage(data):
     with open(USAGE_FILE, "w") as f: json.dump(data, f)
 
-def get_target_id(message):
-    args = message.text.split()
-    if message.reply_to_message:
-        return str(message.reply_to_message.from_user.id)
-    return args[1] if len(args) > 1 else None
-
 def delete_later(chat_id, message_id, delay):
     time.sleep(delay)
     try: bot.delete_message(chat_id, message_id)
     except: pass
 
-# --- COMMAND HANDLERS ---
+def get_chat_display(chat_id):
+    try:
+        chat = bot.get_chat(chat_id)
+        if chat.title: return f"**{chat.title}** (`{chat_id}`)"
+        if chat.username: return f"@{chat.username} (`{chat_id}`)"
+        return f"`{chat_id}`"
+    except: return f"`{chat_id}`"
 
-@bot.message_handler(commands=['tg'])
-def search_handler(message):
+# --- COMMAND HANDLERS ---
+@bot.message_handler(commands=[
+    'approvegc', 'disapprovegc', 'disapprovegcall', 'listapprovegc', 
+    'approvebot', 'disapprovebot', 'disapprovebotall', 'listapprovebot', 
+    'unprotect', 'protect', 'unprotectall', 'listprotect', 
+    'unlimited', 'disunlimited', 'disunlimitedall', 'listunlimited', 'tg', 'broadcast'
+])
+def handle_commands(message):
+    cmd = message.text.split()[0].split('@')[0].lower()
     user_id = message.from_user.id
     user_id_str = str(user_id)
 
-    if not is_subscribed(user_id):
-        bot.reply_to(message, "⚠️ Join channels first:", reply_markup=get_join_markup())
-        return
+    # OWNER ONLY COMMANDS
+    if user_id == OWNER_ID:
+        # Broadcast Logic
+        if cmd == '/broadcast':
+            groups = load_list(DB_FILE)
+            if not groups:
+                bot.reply_to(message, "❌ No approved groups found to broadcast.")
+                return
+            
+            success = 0
+            failed = 0
+            for gid in groups:
+                try:
+                    if message.reply_to_message:
+                        bot.copy_message(gid, message.chat.id, message.reply_to_message.message_id)
+                    else:
+                        broadcast_text = message.text[len('/broadcast '):].strip()
+                        if not broadcast_text:
+                            bot.reply_to(message, "⚠️ Please provide text or reply to a message.")
+                            return
+                        bot.send_message(gid, broadcast_text)
+                    success += 1
+                except:
+                    failed += 1
+            bot.reply_to(message, f"📢 **Broadcast Complete**\n✅ Success: `{success}`\n❌ Failed: `{failed}`", parse_mode="Markdown")
 
-    is_group_ok = str(message.chat.id) in load_list(DB_FILE)
-    is_user_ok = user_id_str in load_list(USER_APPROVAL_FILE)
-    
-    if not (is_group_ok or is_user_ok or user_id == OWNER_ID):
-        bot.reply_to(message, "🚫 Access Denied (Group/User not approved).")
-        return
+        # Bulk Clear Commands
+        elif cmd == '/disunlimitedall':
+            clear_file(UNLIMITED_FILE)
+            bot.reply_to(message, "🗑️ **All users removed from Unlimited list.**", parse_mode="Markdown")
 
-    # Usage Limits
-    usage = load_usage()
-    is_special = (user_id == OWNER_ID or user_id_str in load_list(UNLIMITED_FILE))
-    
-    if not is_special:
-        count = usage.get(user_id_str, 0)
-        if count >= 15:
-            bot.reply_to(message, "❌ Daily limit (15) reached.")
+        elif cmd == '/unprotectall':
+            clear_file(PROTECTED_DATA_FILE)
+            bot.reply_to(message, "🗑️ **All IDs removed from Protected list.**", parse_mode="Markdown")
+
+        elif cmd == '/disapprovegcall':
+            clear_file(DB_FILE)
+            bot.reply_to(message, "🗑️ **All Groups disapproved.**", parse_mode="Markdown")
+
+        elif cmd == '/disapprovebotall':
+            clear_file(USER_APPROVAL_FILE)
+            bot.reply_to(message, "🗑️ **All users removed from personal access.**", parse_mode="Markdown")
+
+        # Personal Access Management
+        elif cmd == '/approvebot':
+            tid = message.reply_to_message.from_user.id if message.reply_to_message else (message.text.split()[1] if len(message.text.split()) > 1 else None)
+            if tid and add_to_list(USER_APPROVAL_FILE, tid):
+                bot.reply_to(message, f"✅ User `{tid}` approved for personal access.")
+        
+        elif cmd == '/disapprovebot':
+            tid = message.reply_to_message.from_user.id if message.reply_to_message else (message.text.split()[1] if len(message.text.split()) > 1 else None)
+            if tid and remove_from_list(USER_APPROVAL_FILE, tid):
+                bot.reply_to(message, f"🚫 Personal access removed for `{tid}`.")
+
+        elif cmd == '/listapprovebot':
+            users = load_list(USER_APPROVAL_FILE)
+            msg = "👤 **Personally Approved Users:**\n" + "\n".join([f"{i+1}. `{u}`" for i, u in enumerate(users)]) if users else "Empty List."
+            bot.reply_to(message, msg, parse_mode="Markdown")
+
+        # Group Management
+        elif cmd == '/approvegc':
+            if add_to_list(DB_FILE, message.chat.id): bot.reply_to(message, "✅ Group Approved!")
+        
+        elif cmd == '/disapprovegc':
+            if remove_from_list(DB_FILE, message.chat.id): bot.reply_to(message, "🚫 Group Disapproved!")
+
+        elif cmd == '/listapprovegc':
+            groups = load_list(DB_FILE)
+            msg = "🏢 **Approved Groups:**\n" + "\n".join([f"{i+1}. {get_chat_display(g)}" for i, g in enumerate(groups)]) if groups else "No groups approved."
+            bot.reply_to(message, msg, parse_mode="Markdown")
+
+        # Unlimited Users
+        elif cmd == '/unlimited':
+            tid = message.reply_to_message.from_user.id if message.reply_to_message else (message.text.split()[1] if len(message.text.split()) > 1 else None)
+            if tid and add_to_list(UNLIMITED_FILE, tid): bot.reply_to(message, f"🚀 `{tid}` is now Unlimited.")
+        
+        elif cmd == '/disunlimited':
+            tid = message.reply_to_message.from_user.id if message.reply_to_message else (message.text.split()[1] if len(message.text.split()) > 1 else None)
+            if tid and remove_from_list(UNLIMITED_FILE, tid): bot.reply_to(message, f"📉 `{tid}` removed from Unlimited.")
+
+        elif cmd == '/listunlimited':
+            users = load_list(UNLIMITED_FILE)
+            msg = "🚀 **Unlimited Users:**\n" + "\n".join([f"{i+1}. `{u}`" for i, u in enumerate(users)]) if users else "No unlimited users."
+            bot.reply_to(message, msg, parse_mode="Markdown")
+
+        # Protection
+        elif cmd == '/protect':
+            tid = message.reply_to_message.from_user.id if message.reply_to_message else (message.text.split()[1] if len(message.text.split()) > 1 else None)
+            if tid and add_to_list(PROTECTED_DATA_FILE, tid): bot.reply_to(message, f"🛡️ `{tid}` Protected.")
+            
+        elif cmd == '/unprotect':
+            tid = message.reply_to_message.from_user.id if message.reply_to_message else (message.text.split()[1] if len(message.text.split()) > 1 else None)
+            if tid and remove_from_list(PROTECTED_DATA_FILE, tid): bot.reply_to(message, f"🔓 `{tid}` Unprotected.")
+
+        elif cmd == '/listprotect':
+            ids = load_list(PROTECTED_DATA_FILE)
+            msg = "🛡️ **Protected IDs:**\n" + "\n".join([f"{i+1}. `{u}`" for i, u in enumerate(ids)]) if ids else "No IDs protected."
+            bot.reply_to(message, msg, parse_mode="Markdown")
+
+    # SEARCH COMMAND
+    if cmd == '/tg':
+        if not is_subscribed(user_id):
+            bot.reply_to(message, "⚠️ Join all channels to use this bot:", reply_markup=get_join_markup())
             return
-        usage[user_id_str] = count + 1
-        save_usage(usage)
-        left_text = f"{15 - usage[user_id_str]}/15"
-    else:
-        left_text = "Unlimited"
 
-    term = get_target_id(message)
-    if not term:
-        bot.reply_to(message, "Usage: `/tg <id>` or reply to someone.")
-        return
-
-    if term in load_list(PROTECTED_DATA_FILE):
-        bot.reply_to(message, "🛡️ Result: `Protected by Admin`")
-        return
-
-    wait = bot.reply_to(message, "🔍 Searching Data...")
-
-    try:
-        res = requests.get(f"{API_BASE_URL}{term}", timeout=15).json()
-        if res.get('status'):
-            data = res['data']
-            p = data.get('phone_info', {})
-            ui = (
-                f"👤 **Name:** `{data.get('display_name', 'N/A')}`\n"
-                f"🔗 **Username:** `@{data.get('username', 'N/A')}`\n"
-                f"🆔 **TG ID:** `{p.get('tg_id', 'N/A')}`\n"
-                f"📱 **Number:** `{p.get('country_code', '')}{p.get('number', 'N/A')}`\n"
-                f"🌍 **Country:** `{p.get('country', 'N/A')}`\n\n"
-                f"📊 **Searches Left:** `{left_text}`\n"
-                f"🗑️ *Deleting in 30s*"
-            )
-            markup = InlineKeyboardMarkup().add(InlineKeyboardButton("𝐒𝐍 𝐗 𝐃𝐀𝐃 🦁", url="https://t.me/sxdad"))
-            msg = bot.edit_message_text(ui, message.chat.id, wait.message_id, parse_mode="Markdown", reply_markup=markup)
-            threading.Thread(target=delete_later, args=(message.chat.id, msg.message_id, 30)).start()
+        chat_id_str = str(message.chat.id)
+        is_group_approved = chat_id_str in load_list(DB_FILE)
+        is_user_approved = user_id_str in load_list(USER_APPROVAL_FILE)
+        
+        if not (is_group_approved or is_user_approved or user_id == OWNER_ID):
+            bot.reply_to(message, "🚫 Access Denied. Group not approved or you don't have personal access.")
+            return
+        
+        usage = load_usage()
+        is_special = (user_id == OWNER_ID or user_id_str in load_list(UNLIMITED_FILE))
+        
+        if not is_special:
+            if usage.get(user_id_str, 0) >= 15:
+                bot.reply_to(message, "❌ Daily limit (15) reached.")
+                return
+            usage[user_id_str] = usage.get(user_id_str, 0) + 1
+            save_usage(usage)
+            left_text = f"{15 - usage[user_id_str]}/15"
         else:
-            bot.edit_message_text("⚠️ No data found.", message.chat.id, wait.message_id)
-    except:
-        bot.edit_message_text("⚠️ API Error.", message.chat.id, wait.message_id)
+            left_text = "Unlimited"
 
-@bot.message_handler(func=lambda m: m.from_user.id == OWNER_ID, commands=[
-    'approvegc', 'disapprovegc', 'listapprovegc', 'protect', 'unprotect', 
-    'unlimited', 'disunlimited', 'approvebot', 'disapprovebot'
-])
-def admin_tools(message):
-    cmd = message.text.split()[0].lower()
-    tid = get_target_id(message)
+        args = message.text.split()
+        term = str(message.reply_to_message.from_user.id) if message.reply_to_message else (args[1] if len(args) > 1 else None)
+        
+        if not term:
+            bot.reply_to(message, "Usage: `/tg <id>`")
+            return
+        
+        if term in load_list(PROTECTED_DATA_FILE):
+            bot.reply_to(message, f"🎯 **TARGET:** `{term}`\n❌ **RESULT:** `Protected`")
+            return
 
-    if 'approvegc' in cmd:
-        if add_to_list(DB_FILE, message.chat.id): bot.reply_to(message, "✅ GC Approved.")
-    elif 'protect' in cmd and tid:
-        if add_to_list(PROTECTED_DATA_FILE, tid): bot.reply_to(message, f"🛡️ `{tid}` Protected.")
-    elif 'unlimited' in cmd and tid:
-        if add_to_list(UNLIMITED_FILE, tid): bot.reply_to(message, f"🚀 `{tid}` is Unlimited.")
-    elif 'approvebot' in cmd and tid:
-        if add_to_list(USER_APPROVAL_FILE, tid): bot.reply_to(message, f"👤 `{tid}` Personal Access ON.")
-    # You can add more admin logic here as per the same pattern
+        dev_markup = InlineKeyboardMarkup()
+        dev_markup.add(InlineKeyboardButton(text="𝐒𝐍 𝐗 𝐃𝐀𝐃 🦁", url="https://t.me/sxdad"))
 
+        wait_msg = bot.reply_to(message, "🔍 Searching...")
+        try:
+            res = requests.get(API_URL, params={'key': API_KEY, 'term': term}, timeout=10).json().get("result", {})
+            ui = (
+                f"🎯 **TARGET:** `{term}`\n"
+                f"📱 **Number:** `{res.get('number', 'N/A')}`\n"
+                f"🌍 **Country:** `{res.get('country', 'N/A')}`\n"
+                f"📊 **Searches Left:** `{left_text}`\n\n"
+                f"🗑️ *This Message Will Delete In 30 Seconds*"
+            )
+            final_msg = bot.edit_message_text(ui, message.chat.id, wait_msg.message_id, parse_mode="Markdown", reply_markup=dev_markup)
+            
+            # Auto-delete after 30 seconds
+            threading.Thread(target=delete_later, args=(message.chat.id, final_msg.message_id, 30)).start()
+        except:
+            bot.edit_message_text("⚠️ Data Not Found.", message.chat.id, wait_msg.message_id)
+
+# --- CALLBACK HANDLER ---
 @bot.callback_query_handler(func=lambda call: call.data == "verify_user")
-def verify(call):
+def verify_callback(call):
     if is_subscribed(call.from_user.id):
         bot.answer_callback_query(call.id, "✅ Verified!")
         bot.delete_message(call.message.chat.id, call.message.message_id)
     else:
         bot.answer_callback_query(call.id, "❌ Join all channels first!", show_alert=True)
 
-# --- FIXED POLLING FOR RAILWAY ---
 if __name__ == "__main__":
-    print("Bot is Alive...")
-    while True:
-        try:
-            bot.polling(none_stop=True, interval=0, timeout=20)
-        except Exception as e:
-            print(f"Error: {e}")
-            time.sleep(5)
-            
+    bot.infinity_polling()
