@@ -235,10 +235,15 @@ def handle(message):
             )
 
             txt = r.text.strip()
-            if not txt:
-                raise Exception("Empty API")
+print("RAW API:", txt)  # optional debug
 
-            data = json.loads(txt)
+if not txt:
+    raise Exception("Empty API")
+
+try:
+    data = json.loads(txt)
+except:
+    raise Exception("Invalid API response")
 
             if str(data.get("status")).lower() == "true":
 
