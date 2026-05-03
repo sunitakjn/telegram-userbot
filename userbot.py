@@ -7,7 +7,7 @@ import time
 import json
 
 # --- CONFIGURATION ---
-BOT_TOKEN = '8667746280:AAFb5oMGFVREoVR5H58TpAbpTho7DEWSOcc'
+BOT_TOKEN = '8667746280:AAHJhNUzwJjCx-v1wUFA_SoiCqm9qV3l0EA'
 API_KEY = "j4tnx"
 API_BASE_URL = "https://cortex-hosting.gt.tc/"
 OWNER_ID = 8442352135 
