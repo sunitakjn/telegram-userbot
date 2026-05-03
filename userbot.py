@@ -211,15 +211,43 @@ def handle_commands(message):
         wait = bot.reply_to(message, "Searching...")
 
         try:
-            response = requests.get(
-                API_BASE_URL,
-                params={'key': API_KEY, 'term': term},
-                headers={'User-Agent': 'Mozilla/5.0'},
-                timeout=15
-            )
+response = requests.get(
+    API_BASE_URL,
+    params={'key': API_KEY, 'term': term},
+    headers={
+        'User-Agent': 'Mozilla/5.0',
+        'Accept': 'application/json'
+    },
+    timeout=15
+)
 
-            if response.status_code != 200:
-                raise Exception("Bad response")
+if response.status_code != 200:
+    raise Exception(f"HTTP {response.status_code}")
+
+text = response.text.strip()
+print("API RAW:", text)  # debug console me dikhega
+
+if not text:
+    raise Exception("Empty API response")
+
+try:
+    data = json.loads(text)
+except:
+    raise Exception("Invalid JSON from API")
+
+if response.status_code != 200:
+    raise Exception(f"HTTP {response.status_code}")
+
+text = response.text.strip()
+print("API RAW:", text)  # debug console me dikhega
+
+if not text:
+    raise Exception("Empty API response")
+
+try:
+    data = json.loads(text)
+except:
+    raise Exception("Invalid JSON from API")
 
             data = response.json()
 
