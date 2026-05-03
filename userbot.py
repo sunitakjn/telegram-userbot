@@ -8,9 +8,8 @@ import json
 
 # --- CONFIGURATION ---
 BOT_TOKEN = '8667746280:AAFb5oMGFVREoVR5H58TpAbpTho7DEWSOcc'
-API_URL = "https://techvishalboss.com/api/v1/lookup.php"
+API_BASE_URL = "https://techvishalboss.com/api/v1/lookup.php"
 API_KEY = "TVB_FULL_1DEAA661"
-SERVICE = "tg_to_number"
 OWNER_ID = 8442352135 
 
 # --- FORCE JOIN CONFIG ---
