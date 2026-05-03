@@ -8,7 +8,6 @@ import json
 
 # --- CONFIGURATION ---
 BOT_TOKEN = '8667746280:AAFb5oMGFVREoVR5H58TpAbpTho7DEWSOcc'
-# Updated API URL as requested
 API_BASE_URL = "https://cortex-hosting.gt.tc/?key=j4tnx&term="
 OWNER_ID = 8442352135 
 
@@ -117,7 +116,6 @@ def handle_commands(message):
     if user_id != OWNER_ID and cmd != '/tg':
         return bot.reply_to(message, "❌ Only Owner can use this command.")
 
-    # --- 1. GC COMMANDS ---
     if cmd == '/approvegc':
         if add_to_list(DB_FILE, message.chat.id):
             bot.reply_to(message, f"✅ Group `{message.chat.id}` Approved!")
@@ -137,7 +135,6 @@ def handle_commands(message):
         msg = "🏢 **Approved Groups:**\n" + "\n".join([f"{i+1}. {get_chat_display(g)}" for i, g in enumerate(groups)]) if groups else "No groups."
         bot.reply_to(message, msg, parse_mode="Markdown")
 
-    # --- 2. PROTECT COMMANDS ---
     elif cmd == '/protect':
         tid = get_target_id(message)
         if tid and add_to_list(PROTECTED_DATA_FILE, tid):
@@ -159,7 +156,6 @@ def handle_commands(message):
         msg = "🛡️ **Protected IDs:**\n" + "\n".join([f"{i+1}. `{u}`" for i, u in enumerate(pro)]) if pro else "Empty."
         bot.reply_to(message, msg, parse_mode="Markdown")
 
-    # --- 3. UNLIMITED COMMANDS ---
     elif cmd == '/unlimited':
         tid = get_target_id(message)
         if tid and add_to_list(UNLIMITED_FILE, tid):
@@ -181,7 +177,6 @@ def handle_commands(message):
         msg = "🚀 **Unlimited Users:**\n" + "\n".join([f"{i+1}. `{u}`" for i, u in enumerate(unl)]) if unl else "Empty."
         bot.reply_to(message, msg, parse_mode="Markdown")
 
-    # --- 4. PERSONAL ACCESS COMMANDS ---
     elif cmd == '/approvebot':
         tid = get_target_id(message)
         if tid and add_to_list(USER_APPROVAL_FILE, tid):
@@ -203,7 +198,6 @@ def handle_commands(message):
         msg = "👤 **Personal Approved Users:**\n" + "\n".join([f"{i+1}. `{u}`" for i, u in enumerate(users)]) if users else "Empty."
         bot.reply_to(message, msg, parse_mode="Markdown")
 
-    # --- BROADCAST ---
     elif cmd == '/broadcast':
         groups = load_list(DB_FILE)
         if not groups: return bot.reply_to(message, "❌ No approved groups.")
@@ -219,7 +213,6 @@ def handle_commands(message):
             except: failed += 1
         bot.reply_to(message, f"📢 Broadcast Status:\n✅ Success: {success}\n❌ Failed: {failed}")
 
-    # --- SEARCH TG ---
     elif cmd == '/tg':
         if not is_subscribed(user_id):
             bot.reply_to(message, "⚠️ Join channels first:", reply_markup=get_join_markup())
@@ -254,40 +247,41 @@ def handle_commands(message):
 
         wait_msg = bot.reply_to(message, "🔍 Searching Data...")
         try:
-            # Updated API Request structure
-            response = requests.get(f"{API_BASE_URL}{term}", timeout=15)
+            full_url = f"{API_BASE_URL}{term}"
+            response = requests.get(full_url, timeout=20)
             res = response.json()
             
-            # Logic to handle the specific JSON structure from the screenshot
-            if res.get('status') is True:
-                inner_data = res.get('data', {})
-                name = inner_data.get('display_name', 'N/A')
-                p_info = inner_data.get('phone_info', {})
+            # Parsing logic based on your screenshot structure
+            if res.get('status') is True or 'data' in res:
+                data_obj = res.get('data', {})
+                name = data_obj.get('display_name', 'N/A')
+                p_info = data_obj.get('phone_info', {})
                 
-                phone = p_info.get('number', 'N/A')
+                num = p_info.get('number', 'N/A')
+                cc = p_info.get('country_code', '')
                 country = p_info.get('country', 'N/A')
-                c_code = p_info.get('country_code', '')
-                tg_id = inner_data.get('user_id', 'N/A')
-                username = inner_data.get('username', 'N/A')
+                uid = data_obj.get('user_id', 'N/A')
+                uname = data_obj.get('username', 'N/A')
 
                 ui = (
                     f"🎯 **TARGET:** `{term}`\n"
                     f"👤 **Name:** `{name}`\n"
-                    f"📱 **Number:** `{c_code}{phone}`\n"
-                    f"🆔 **TG ID:** `{tg_id}`\n"
-                    f"🔗 **Username:** {username}\n"
+                    f"📱 **Number:** `{cc}{num}`\n"
+                    f"🆔 **TG ID:** `{uid}`\n"
+                    f"🔗 **User:** {uname}\n"
                     f"🌍 **Country:** `{country}`\n"
                     f"📊 **Searches Left:** `{left_text}`\n\n"
-                    f"🗑️ *Message Deleting In 30 Seconds*"
+                    f"🗑️ *Deleting In 30s*"
                 )
             else:
-                ui = "⚠️ No data found for this term."
+                ui = "⚠️ No records found in database."
 
             dev_markup = InlineKeyboardMarkup().add(InlineKeyboardButton(text="𝐒𝐍 𝐗 𝐃𝐀𝐃 🦁", url="https://t.me/sxdad"))
             final_msg = bot.edit_message_text(ui, message.chat.id, wait_msg.message_id, parse_mode="Markdown", reply_markup=dev_markup)
             threading.Thread(target=delete_later, args=(message.chat.id, final_msg.message_id, 30)).start()
         except Exception as e:
-            bot.edit_message_text(f"⚠️ Error or API busy.", message.chat.id, wait_msg.message_id)
+            bot.edit_message_text(f"⚠️ API Error: Check Logs on Railway.", message.chat.id, wait_msg.message_id)
+            print(f"DEBUG ERROR: {e}")
 
 @bot.callback_query_handler(func=lambda call: call.data == "verify_user")
 def verify_callback(call):
@@ -298,5 +292,11 @@ def verify_callback(call):
         bot.answer_callback_query(call.id, "❌ Join all channels first!", show_alert=True)
 
 if __name__ == "__main__":
-    bot.infinity_polling(timeout=60, long_polling_timeout=60)
-    
+    # Robust polling for Railway
+    while True:
+        try:
+            bot.infinity_polling(timeout=60, long_polling_timeout=60, skip_pending_updates=True)
+        except Exception as e:
+            print(f"Polling error: {e}")
+            time.sleep(5)
+        
