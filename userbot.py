@@ -8,8 +8,6 @@ import json
 
 # --- CONFIGURATION ---
 BOT_TOKEN = '8667746280:AAFb5oMGFVREoVR5H58TpAbpTho7DEWSOcc'
-# Base URL ko clean rakha hai params ke liye
-API_URL = "https://cortex-hosting.gt.tc/" 
 API_KEY = "j4tnx"
 OWNER_ID = 8442352135 
 
@@ -108,13 +106,13 @@ def get_chat_display(chat_id):
     'unlimited', 'disunlimited', 'disunlimitedall', 'listunlimited', 'tg', 'broadcast'
 ])
 def handle_commands(message):
-    cmd = message.text.split()[0].split('@')[0].lower()
+    cmd = message.text.split()[0].split('@')[0].lower()[1:] # Removing the '/'
     user_id = message.from_user.id
     user_id_str = str(user_id)
 
     # OWNER ONLY COMMANDS
     if user_id == OWNER_ID:
-        if cmd == '/broadcast':
+        if cmd == 'broadcast':
             groups = load_list(DB_FILE)
             if not groups:
                 bot.reply_to(message, "❌ No approved groups found.")
@@ -132,50 +130,47 @@ def handle_commands(message):
                 except: failed += 1
             bot.reply_to(message, f"📢 **Broadcast Complete**\n✅ Success: `{success}`\n❌ Failed: `{failed}`", parse_mode="Markdown")
 
-        elif cmd == '/disunlimitedall':
-            clear_file(UNLIMITED_FILE)
-            bot.reply_to(message, "🗑️ Unlimited list cleared.")
+        elif cmd == 'disunlimitedall':
+            clear_file(UNLIMITED_FILE); bot.reply_to(message, "🗑️ Unlimited list cleared.")
+        elif cmd == 'unprotectall':
+            clear_file(PROTECTED_DATA_FILE); bot.reply_to(message, "🗑️ Protection list cleared.")
+        elif cmd == 'disapprovegcall':
+            clear_file(DB_FILE); bot.reply_to(message, "🗑️ All Groups removed.")
+        elif cmd == 'disapprovebotall':
+            clear_file(USER_APPROVAL_FILE); bot.reply_to(message, "🗑️ Personal access cleared.")
 
-        elif cmd == '/unprotectall':
-            clear_file(PROTECTED_DATA_FILE)
-            bot.reply_to(message, "🗑️ Protection list cleared.")
-
-        elif cmd == '/disapprovegcall':
-            clear_file(DB_FILE)
-            bot.reply_to(message, "🗑️ All Groups removed.")
-
-        elif cmd == '/disapprovebotall':
-            clear_file(USER_APPROVAL_FILE)
-            bot.reply_to(message, "🗑️ All users removed from personal access.")
-
-        elif cmd == '/approvebot':
+        elif cmd in ['approvebot', 'disapprovebot', 'unlimited', 'disunlimited', 'protect', 'unprotect']:
             tid = message.reply_to_message.from_user.id if message.reply_to_message else (message.text.split()[1] if len(message.text.split()) > 1 else None)
-            if tid and add_to_list(USER_APPROVAL_FILE, tid): bot.reply_to(message, f"✅ `{tid}` Approved.")
-        
-        elif cmd == '/disapprovebot':
-            tid = message.reply_to_message.from_user.id if message.reply_to_message else (message.text.split()[1] if len(message.text.split()) > 1 else None)
-            if tid and remove_from_list(USER_APPROVAL_FILE, tid): bot.reply_to(message, f"🚫 `{tid}` Removed.")
+            if not tid: return
+            if cmd == 'approvebot': 
+                if add_to_list(USER_APPROVAL_FILE, tid): bot.reply_to(message, f"✅ `{tid}` Approved.")
+            elif cmd == 'disapprovebot':
+                if remove_from_list(USER_APPROVAL_FILE, tid): bot.reply_to(message, f"🚫 `{tid}` Removed.")
+            elif cmd == 'unlimited':
+                if add_to_list(UNLIMITED_FILE, tid): bot.reply_to(message, f"🚀 `{tid}` is now Unlimited.")
+            elif cmd == 'disunlimited':
+                if remove_from_list(UNLIMITED_FILE, tid): bot.reply_to(message, f"📉 `{tid}` removed from Unlimited.")
+            elif cmd == 'protect':
+                if add_to_list(PROTECTED_DATA_FILE, tid): bot.reply_to(message, f"🛡️ `{tid}` Protected.")
+            elif cmd == 'unprotect':
+                if remove_from_list(PROTECTED_DATA_FILE, tid): bot.reply_to(message, f"🔓 `{tid}` Unprotected.")
 
-        elif cmd == '/approvegc':
+        elif cmd == 'approvegc':
             if add_to_list(DB_FILE, message.chat.id): bot.reply_to(message, "✅ Group Approved!")
-        
-        elif cmd == '/disapprovegc':
+        elif cmd == 'disapprovegc':
             if remove_from_list(DB_FILE, message.chat.id): bot.reply_to(message, "🚫 Group Disapproved!")
 
-        # ... other list/management commands can be added here similarly ...
-
     # SEARCH COMMAND
-    if cmd == '/tg':
+    if cmd == 'tg':
         if not is_subscribed(user_id):
             bot.reply_to(message, "⚠️ Join all channels to use this bot:", reply_markup=get_join_markup())
             return
 
-        chat_id_str = str(message.chat.id)
-        is_group_approved = chat_id_str in load_list(DB_FILE)
+        is_group_approved = str(message.chat.id) in load_list(DB_FILE)
         is_user_approved = user_id_str in load_list(USER_APPROVAL_FILE)
         
         if not (is_group_approved or is_user_approved or user_id == OWNER_ID):
-            bot.reply_to(message, "🚫 Access Denied.")
+            bot.reply_to(message, "🚫 Access Denied. Group/User not approved.")
             return
         
         usage = load_usage()
@@ -183,7 +178,7 @@ def handle_commands(message):
         
         if not is_special:
             if usage.get(user_id_str, 0) >= 15:
-                bot.reply_to(message, "❌ Daily limit reached.")
+                bot.reply_to(message, "❌ Daily limit (15) reached.")
                 return
             usage[user_id_str] = usage.get(user_id_str, 0) + 1
             save_usage(usage)
@@ -207,29 +202,31 @@ def handle_commands(message):
 
         wait_msg = bot.reply_to(message, "🔍 Searching...")
         try:
-            # --- FIXED API PARSING LOGIC ---
-            response = requests.get(API_URL, params={'key': API_KEY, 'term': term}, timeout=10).json()
+            # --- FIXED API CALL & PARSING ---
+            final_url = f"https://cortex-hosting.gt.tc/?key={API_KEY}&term={term}"
+            res = requests.get(final_url, timeout=10).json()
             
-            data = response.get("data", {})
-            phone_info = data.get("phone_info", {})
-            
-            num = phone_info.get("number", "N/A")
-            country = phone_info.get("country", "N/A")
-            c_code = phone_info.get("country_code", "")
+            if res.get("status") is True:
+                data = res.get("data", {})
+                p_info = data.get("phone_info", {})
+                
+                num = p_info.get("number", "N/A")
+                country = p_info.get("country", "N/A")
+                c_code = p_info.get("country_code", "")
 
-            full_num = f"{c_code}{num}" if num != "N/A" else "N/A"
-
-            ui = (
-                f"🎯 **TARGET:** `{term}`\n"
-                f"📱 **Number:** `{full_num}`\n"
-                f"🌍 **Country:** `{country}`\n"
-                f"📊 **Searches Left:** `{left_text}`\n\n"
-                f"🗑️ *This Message Will Delete In 30 Seconds*"
-            )
-            final_msg = bot.edit_message_text(ui, message.chat.id, wait_msg.message_id, parse_mode="Markdown", reply_markup=dev_markup)
-            threading.Thread(target=delete_later, args=(message.chat.id, final_msg.message_id, 30)).start()
-        except:
-            bot.edit_message_text("⚠️ Data Not Found.", message.chat.id, wait_msg.message_id)
+                ui = (
+                    f"🎯 **TARGET:** `{term}`\n"
+                    f"📱 **Number:** `{c_code}{num}`\n"
+                    f"🌍 **Country:** `{country}`\n"
+                    f"📊 **Searches Left:** `{left_text}`\n\n"
+                    f"🗑️ *This Message Will Delete In 30 Seconds*"
+                )
+                final_msg = bot.edit_message_text(ui, message.chat.id, wait_msg.message_id, parse_mode="Markdown", reply_markup=dev_markup)
+                threading.Thread(target=delete_later, args=(message.chat.id, final_msg.message_id, 30)).start()
+            else:
+                bot.edit_message_text(f"⚠️ Data Not Found for `{term}`.", message.chat.id, wait_msg.message_id)
+        except Exception as e:
+            bot.edit_message_text("⚠️ API Connection Error.", message.chat.id, wait_msg.message_id)
 
 # --- CALLBACK HANDLER ---
 @bot.callback_query_handler(func=lambda call: call.data == "verify_user")
@@ -241,6 +238,5 @@ def verify_callback(call):
         bot.answer_callback_query(call.id, "❌ Join all channels first!", show_alert=True)
 
 if __name__ == "__main__":
-    print("Bot is running...")
     bot.infinity_polling()
-        
+                                                                        
