@@ -115,6 +115,29 @@ def handle(message):
                 save_list(DB_FILE, g)
             bot.reply_to(message, "Group Approved")
 
+        elif cmd == "disapprovegc":
+    g = load_list(DB_FILE)
+    if str(message.chat.id) in g:
+        g.remove(str(message.chat.id))
+        save_list(DB_FILE, g)
+    bot.reply_to(message, "Group Removed")
+
+elif cmd == "listapprovegc":
+    g = load_list(DB_FILE)
+    bot.reply_to(message, "\n".join(g) if g else "No groups")
+
+elif cmd == "listapprovebot":
+    u = load_list(USER_APPROVAL_FILE)
+    bot.reply_to(message, "\n".join(u) if u else "No users")
+
+elif cmd == "listprotect":
+    p = load_list(PROTECTED_DATA_FILE)
+    bot.reply_to(message, "\n".join(p) if p else "No protected")
+
+elif cmd == "listunlimited":
+    u = load_list(UNLIMITED_FILE)
+    bot.reply_to(message, "\n".join(u) if u else "No unlimited users")
+
         elif cmd == "disapprovegcall":
             open(DB_FILE,"w").close()
             bot.reply_to(message,"All groups removed")
