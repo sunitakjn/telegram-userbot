@@ -249,6 +249,20 @@ try:
 except:
     raise Exception("Invalid JSON from API")
 
+if response.status_code != 200:
+    raise Exception(f"HTTP {response.status_code}")
+
+text = response.text.strip()
+print("API RAW:", text)  # debug console me dikhega
+
+if not text:
+    raise Exception("Empty API response")
+
+try:
+    data = json.loads(text)
+except:
+    raise Exception("Invalid JSON from API")
+
             data = response.json()
 
             if str(data.get("status")).lower() == "true":
