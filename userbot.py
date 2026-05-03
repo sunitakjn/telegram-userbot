@@ -210,60 +210,30 @@ def handle_commands(message):
 
         wait = bot.reply_to(message, "Searching...")
 
-        try:
-response = requests.get(
-    API_BASE_URL,
-    params={'key': API_KEY, 'term': term},
-    headers={
-        'User-Agent': 'Mozilla/5.0',
-        'Accept': 'application/json'
-    },
-    timeout=15
-)
-
-if response.status_code != 200:
-    raise Exception(f"HTTP {response.status_code}")
-
-text = response.text.strip()
-print("API RAW:", text)  # debug console me dikhega
-
-if not text:
-    raise Exception("Empty API response")
-
 try:
-    data = json.loads(text)
-except:
-    raise Exception("Invalid JSON from API")
+            response = requests.get(
+                API_BASE_URL,
+                params={'key': API_KEY, 'term': term},
+                headers={
+                    'User-Agent': 'Mozilla/5.0',
+                    'Accept': 'application/json'
+                },
+                timeout=15
+            )
 
-if response.status_code != 200:
-    raise Exception(f"HTTP {response.status_code}")
+            if response.status_code != 200:
+                raise Exception(f"HTTP {response.status_code}")
 
-text = response.text.strip()
-print("API RAW:", text)  # debug console me dikhega
+            text = response.text.strip()
+            print("API RAW:", text)
 
-if not text:
-    raise Exception("Empty API response")
+            if not text:
+                raise Exception("Empty API response")
 
-try:
-    data = json.loads(text)
-except:
-    raise Exception("Invalid JSON from API")
-
-if response.status_code != 200:
-    raise Exception(f"HTTP {response.status_code}")
-
-text = response.text.strip()
-print("API RAW:", text)  # debug console me dikhega
-
-if not text:
-    raise Exception("Empty API response")
-
-try:
-    data = json.loads(text)
-except:
-    raise Exception("Invalid JSON from API")
-
-            data = response.json()
+            try:
+                data = json.loads(text)
+            except:
+                raise Exception("Invalid JSON from API")
 
             if str(data.get("status")).lower() == "true":
 
@@ -280,7 +250,10 @@ except:
 
                 sent = bot.edit_message_text(msg, message.chat.id, wait.message_id)
 
-                threading.Thread(target=delete_later, args=(message.chat.id, sent.message_id, 30)).start()
+                threading.Thread(
+                    target=delete_later,
+                    args=(message.chat.id, sent.message_id, 30)
+                ).start()
 
             else:
                 bot.edit_message_text("Data Not Found", message.chat.id, wait.message_id)
