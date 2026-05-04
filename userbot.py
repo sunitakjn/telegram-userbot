@@ -158,13 +158,38 @@ def handle_commands(message):
             l = load_list(USER_APPROVAL_FILE)
             bot.reply_to(message, "👤 **Personal Users:**\n" + "\n".join(l) if l else "Empty.")
 
-    # --- SEARCH COMMAND (/tg) ---
+        # --- SEARCH COMMAND (/tg) ---
     if cmd == '/tg':
         if not is_subscribed(user_id):
             return bot.reply_to(message, "⚠️ Join Channels First:", reply_markup=get_join_markup())
 
         if not (str(chat_id) in load_list(DB_FILE) or str(user_id) in load_list(USER_APPROVAL_FILE) or user_id == OWNER_ID):
             return bot.reply_to(message, "🚫 Group or User not approved.")
+
+        # --- LIMIT CHECK LOGIC ---
+        today = time.strftime("%Y-%m-%d")
+        usage = load_usage()
+        uid_str = str(user_id)
+        
+        # Owner aur Unlimited users ko skip karega
+        if user_id != OWNER_ID and uid_str not in load_list(UNLIMITED_FILE):
+            user_data = usage.get(uid_str, {"date": today, "count": 0})
+            
+            # Agar din badal gaya hai toh count reset karein
+            if user_data["date"] != today:
+                user_data = {"date": today, "count": 0}
+            
+            if user_data["count"] >= 8:
+                return bot.reply_to(message, "🚫 Daily Limit Exceeded! You can only search 8 times per day.")
+            
+            # Count badhayein aur save karein
+            user_data["count"] += 1
+            usage[uid_str] = user_data
+            save_usage(usage)
+            current_count = user_data["count"]
+        else:
+            current_count = "Unlimited"
+        # -------------------------
 
         target = str(message.reply_to_message.from_user.id) if message.reply_to_message else (args[1] if len(args)>1 else None)
         if not target: return bot.reply_to(message, "Usage: `/tg {id}` or reply.")
@@ -180,6 +205,7 @@ def handle_commands(message):
                       f"👤 **User ID:** `{res.get('user_id')}`\n"
                       f"📞 **Number:** `{res.get('number')}`\n"
                       f"🌍 **Country:** {res.get('Country')} ({res.get('Country Code')})\n"
+                      f"📊 **Usage Today:** {current_count}/8\n" # Limit dikhane ke liye
                       f"━━━━━━━━━━━━━━━\n⏳ *Deleting both in 30s*")
             else: ui = f"❌ No data found for `{target}`."
 
@@ -190,7 +216,7 @@ def handle_commands(message):
             threading.Thread(target=auto_delete_task, args=(chat_id, [message.message_id, final.message_id], 30)).start()
         except:
             bot.edit_message_text("⚠️ API Connection Error.", chat_id, wait.message_id)
-
+            
 @bot.callback_query_handler(func=lambda call: call.data == "verify_user")
 def verify(call):
     if is_subscribed(call.from_user.id):
