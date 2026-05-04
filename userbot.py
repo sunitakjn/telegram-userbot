@@ -209,36 +209,29 @@ def handle_commands(message):
             msg = "🛡️ **Protected IDs:**\n" + "\n".join([f"{i+1}. `{u}`" for i, u in enumerate(ids)]) if ids else "No IDs protected."
             bot.reply_to(message, msg, parse_mode="Markdown")
 
-    # --- SEARCH COMMAND FIX ---
-@bot.message_handler(commands=['tg'])
-def handle_tg(message):
-    user_id = message.from_user.id
-    user_id_str = str(user_id)
+    # --- SEARCH COMMAND UPDATE ---
+if cmd == '/tg':
+    # ... (access checks same rahenge) ...
 
-    if not is_subscribed(user_id):
-        bot.reply_to(message, "⚠️ Join all channels to use this bot:", reply_markup=get_join_markup())
-        return
+    # Usage save karne ke liye ye line update karein
+    if not is_special:
+        if usage.get(user_id_str, 0) >= 15:
+            bot.reply_to(message, "❌ Daily limit (15) reached.")
+            return
+        usage[user_id_str] = usage.get(user_id_str, 0) + 1
+        save_usage(usage) # Make sure ye execute ho raha hai
+        left_text = f"{15 - usage[user_id_str]}/15"
+    else:
+        left_text = "Unlimited"
 
-    # Access Check logic... (Aapka logic sahi hai)
-
-    args = message.text.split()
-    term = str(message.reply_to_message.from_user.id) if message.reply_to_message else (args[1] if len(args) > 1 else None)
-    
-    if not term:
-        bot.reply_to(message, "Usage: `/tg <id>`")
-        return
-
-    wait_msg = bot.reply_to(message, "🔍 Searching...")
-    
+    # API Call fix
     try:
-        # API call with correct params
-        # 'term' ko aap 'id' ya jo bhi API maang rahi hai usme pass karein
-        response = requests.get(API_URL, params={'id': term}, timeout=15) 
-        data = response.json()
-        res = data.get("result", {})
+        # Params me 'id' wahi rakhein jo aapki API demand kar rahi hai
+        response = requests.get(API_URL, params={'id': term}, timeout=15)
+        res = response.json().get("result", {})
 
-        if not res:
-            bot.edit_message_text("⚠️ Data Not Found.", message.chat.id, wait_msg.message_id)
+        if not res or res == {}:
+            bot.edit_message_text("⚠️ Data Not Found for this ID.", message.chat.id, wait_msg.message_id)
             return
 
         ui = (
