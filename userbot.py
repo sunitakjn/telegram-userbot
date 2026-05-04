@@ -29,7 +29,7 @@ UNLIMITED_FILE = "unlimited_users.txt"
 PROTECTED_DATA_FILE = "protected_ids.txt"
 USAGE_FILE = "usage_data.json"
 
-# --- DECRYPTION LOGIC FOR NEW API ---
+# --- DECRYPTION LOGIC ---
 def get_api_data(target):
     session = requests.Session()
     url = f"https://cortex-hosting.gt.tc/?key={API_KEY}&term={target}"
@@ -37,31 +37,22 @@ def get_api_data(target):
     
     try:
         response = session.get(url, headers=headers, timeout=15)
-        
-        # Check if the page is asking for JS challenge (aes.js)
         if "aes.js" in response.text:
             hex_strings = re.findall(r'toNumbers\("([a-f0-9]+)"\)', response.text)
-            
             if len(hex_strings) >= 3:
                 key = bytes.fromhex(hex_strings[0])
                 iv = bytes.fromhex(hex_strings[1])
                 encrypted_data = bytes.fromhex(hex_strings[2])
-                
                 cipher = AES.new(key, AES.MODE_CBC, iv)
                 decrypted = cipher.decrypt(encrypted_data)
-                try:
-                    decrypted = unpad(decrypted, AES.block_size)
-                except:
-                    pass
-                
-                # Setting the cookie to bypass the challenge
+                try: decrypted = unpad(decrypted, AES.block_size)
+                except: pass
                 session.cookies.set('__test', decrypted.hex())
                 final_response = session.get(f"{url}&i=1", headers=headers, timeout=15)
                 return final_response.json()
-        
         return response.json()
-    except Exception as e:
-        return {"error": str(e)}
+    except Exception:
+        return {"status": False}
 
 # --- HELPER FUNCTIONS ---
 def is_subscribed(user_id):
@@ -120,7 +111,7 @@ def auto_delete_task(chat_id, msg_ids, delay):
         try: bot.delete_message(chat_id, mid)
         except: pass
 
-# --- MAIN COMMAND HANDLER ---
+# --- MAIN HANDLER ---
 @bot.message_handler(commands=[
     'approvegc', 'disapprovegc', 'disapprovegcall', 'listapprovegc', 
     'approvebot', 'disapprovebot', 'disapprovebotall', 'listapprovebot', 
@@ -133,7 +124,7 @@ def handle_commands(message):
     chat_id = message.chat.id
     args = message.text.split()
 
-    # OWNER ONLY LOGIC
+    # --- OWNER ONLY COMMANDS ---
     if user_id == OWNER_ID:
         if cmd == '/broadcast':
             groups = load_list(DB_FILE)
@@ -143,6 +134,7 @@ def handle_commands(message):
                     else: bot.send_message(g, " ".join(args[1:]))
                 except: pass
             bot.reply_to(message, "✅ Broadcast Sent.")
+
         elif cmd == '/approvegc':
             if add_to_list(DB_FILE, chat_id): bot.reply_to(message, "✅ Group Approved.")
         elif cmd == '/disapprovegc':
@@ -152,6 +144,7 @@ def handle_commands(message):
         elif cmd == '/listapprovegc':
             l = load_list(DB_FILE)
             bot.reply_to(message, "🏢 **Approved GCs:**\n" + "\n".join(l) if l else "Empty.")
+
         elif cmd == '/protect':
             tid = message.reply_to_message.from_user.id if message.reply_to_message else (args[1] if len(args)>1 else None)
             if tid and add_to_list(PROTECTED_DATA_FILE, tid): bot.reply_to(message, f"🛡️ {tid} Protected.")
@@ -163,6 +156,7 @@ def handle_commands(message):
         elif cmd == '/listprotect':
             l = load_list(PROTECTED_DATA_FILE)
             bot.reply_to(message, "🛡️ **Protected IDs:**\n" + "\n".join(l) if l else "Empty.")
+
         elif cmd == '/unlimited':
             tid = message.reply_to_message.from_user.id if message.reply_to_message else (args[1] if len(args)>1 else None)
             if tid and add_to_list(UNLIMITED_FILE, tid): bot.reply_to(message, f"🚀 {tid} Unlimited.")
@@ -174,6 +168,7 @@ def handle_commands(message):
         elif cmd == '/listunlimited':
             l = load_list(UNLIMITED_FILE)
             bot.reply_to(message, "🚀 **Unlimited Users:**\n" + "\n".join(l) if l else "Empty.")
+
         elif cmd == '/approvebot':
             tid = message.reply_to_message.from_user.id if message.reply_to_message else (args[1] if len(args)>1 else None)
             if tid and add_to_list(USER_APPROVAL_FILE, tid): bot.reply_to(message, f"👤 {tid} Approved.")
@@ -194,10 +189,10 @@ def handle_commands(message):
         if not (str(chat_id) in load_list(DB_FILE) or str(user_id) in load_list(USER_APPROVAL_FILE) or user_id == OWNER_ID):
             return bot.reply_to(message, "🚫 Group or User not approved.")
 
-        # Limit check
         today = time.strftime("%Y-%m-%d")
         usage = load_usage()
         uid_str = str(user_id)
+        
         if user_id != OWNER_ID and uid_str not in load_list(UNLIMITED_FILE):
             user_data = usage.get(uid_str, {"date": today, "count": 0})
             if user_data["date"] != today: user_data = {"date": today, "count": 0}
@@ -216,31 +211,26 @@ def handle_commands(message):
         if target in load_list(PROTECTED_DATA_FILE) and user_id != OWNER_ID:
             return bot.reply_to(message, f"🎯 **Target:** `{target}`\n🛡️ **Result:** `Protected`")
 
-        wait = bot.reply_to(message, "🔍 Searching Decrypted API...")
-        
+        wait = bot.reply_to(message, "🔍 Searching Database...")
         try:
             res = get_api_data(target)
-            
-            if res and "error" not in res:
-                # Customizing layout based on typical API responses
-                # Change keys like 'phone' or 'number' based on the API's actual JSON output
-                phone = res.get('phone') or res.get('number') or "Not Found"
-                country = res.get('country') or res.get('Country') or "N/A"
-                
+            if res.get("status") == True and "data" in res:
+                data = res["data"]
+                p_info = data.get("phone_info", {})
                 ui = (f"✨ **SN X SEARCH RESULTS** ✨\n━━━━━━━━━━━━━━━\n"
-                      f"👤 **User ID:** `{target}`\n"
-                      f"📞 **Number:** `{phone}`\n"
-                      f"🌍 **Country:** `{country}`\n"
-                      f"📊 **Usage Today:** {current_count}/8\n"
+                      f"👤 **Name:** `{data.get('display_name', 'N/A')}`\n"
+                      f"📞 **Number:** `{p_info.get('number', 'N/A')}`\n"
+                      f"🌍 **Country:** {p_info.get('country', 'N/A')} ({p_info.get('country_code', '')})\n"
+                      f"📊 **Usage:** {current_count}/8\n"
                       f"━━━━━━━━━━━━━━━\n⏳ *Deleting in 30s*")
             else:
-                ui = f"❌ No data found for `{target}` or API error."
+                ui = f"❌ No data found for `{target}`."
 
             btn = InlineKeyboardMarkup().add(InlineKeyboardButton("𝐒𝐍 𝐗 𝐃𝐀𝐃 🦁", url="https://t.me/snxdad"))
             final = bot.edit_message_text(ui, chat_id, wait.message_id, parse_mode="Markdown", reply_markup=btn)
             threading.Thread(target=auto_delete_task, args=(chat_id, [message.message_id, final.message_id], 30)).start()
-        except Exception as e:
-            bot.edit_message_text(f"⚠️ Error: {str(e)}", chat_id, wait.message_id)
+        except:
+            bot.edit_message_text("⚠️ API Connection Error.", chat_id, wait.message_id)
 
 @bot.callback_query_handler(func=lambda call: call.data == "verify_user")
 def verify(call):
@@ -250,6 +240,6 @@ def verify(call):
     else: bot.answer_callback_query(call.id, "❌ Join all channels first!", show_alert=True)
 
 if __name__ == "__main__":
-    print("Bot is running with Decryption Support...")
+    print("Bot is running with all legacy commands...")
     bot.infinity_polling()
-                                
+        
