@@ -5,14 +5,13 @@ import os
 import threading
 import time
 import json
-import re
-from Crypto.Cipher import AES
-from Crypto.Util.Padding import unpad
 
 # --- CONFIGURATION ---
 BOT_TOKEN = '8667746280:AAHJhNUzwJjCx-v1wUFA_SoiCqm9qV3l0EA'
+# Nayi API details
+API_BASE_URL = "http://api.subhxcosmo.in/api"
+API_KEY = "titan"
 OWNER_ID = 8442352135 
-API_KEY = "j4tnx"
 
 CHANNELS = {
     "1 🚀": {"id": "@snxhub", "url": "https://t.me/snxhub"},
@@ -28,31 +27,6 @@ USER_APPROVAL_FILE = "approved_users.txt"
 UNLIMITED_FILE = "unlimited_users.txt"
 PROTECTED_DATA_FILE = "protected_ids.txt"
 USAGE_FILE = "usage_data.json"
-
-# --- DECRYPTION LOGIC ---
-def get_api_data(target):
-    session = requests.Session()
-    url = f"https://cortex-hosting.gt.tc/?key={API_KEY}&term={target}"
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
-    
-    try:
-        response = session.get(url, headers=headers, timeout=15)
-        if "aes.js" in response.text:
-            hex_strings = re.findall(r'toNumbers\("([a-f0-9]+)"\)', response.text)
-            if len(hex_strings) >= 3:
-                key = bytes.fromhex(hex_strings[0])
-                iv = bytes.fromhex(hex_strings[1])
-                encrypted_data = bytes.fromhex(hex_strings[2])
-                cipher = AES.new(key, AES.MODE_CBC, iv)
-                decrypted = cipher.decrypt(encrypted_data)
-                try: decrypted = unpad(decrypted, AES.block_size)
-                except: pass
-                session.cookies.set('__test', decrypted.hex())
-                final_response = session.get(f"{url}&i=1", headers=headers, timeout=15)
-                return final_response.json()
-        return response.json()
-    except Exception:
-        return {"status": False}
 
 # --- HELPER FUNCTIONS ---
 def is_subscribed(user_id):
@@ -111,7 +85,7 @@ def auto_delete_task(chat_id, msg_ids, delay):
         try: bot.delete_message(chat_id, mid)
         except: pass
 
-# --- MAIN HANDLER ---
+# --- MAIN COMMAND HANDLER ---
 @bot.message_handler(commands=[
     'approvegc', 'disapprovegc', 'disapprovegcall', 'listapprovegc', 
     'approvebot', 'disapprovebot', 'disapprovebotall', 'listapprovebot', 
@@ -124,7 +98,7 @@ def handle_commands(message):
     chat_id = message.chat.id
     args = message.text.split()
 
-    # --- OWNER ONLY COMMANDS ---
+    # OWNER ONLY LOGIC
     if user_id == OWNER_ID:
         if cmd == '/broadcast':
             groups = load_list(DB_FILE)
@@ -189,15 +163,19 @@ def handle_commands(message):
         if not (str(chat_id) in load_list(DB_FILE) or str(user_id) in load_list(USER_APPROVAL_FILE) or user_id == OWNER_ID):
             return bot.reply_to(message, "🚫 Group or User not approved.")
 
+        # --- LIMIT CHECK LOGIC ---
         today = time.strftime("%Y-%m-%d")
         usage = load_usage()
         uid_str = str(user_id)
         
         if user_id != OWNER_ID and uid_str not in load_list(UNLIMITED_FILE):
             user_data = usage.get(uid_str, {"date": today, "count": 0})
-            if user_data["date"] != today: user_data = {"date": today, "count": 0}
+            if user_data["date"] != today:
+                user_data = {"date": today, "count": 0}
+            
             if user_data["count"] >= 8:
-                return bot.reply_to(message, "🚫 Daily Limit Exceeded! (8/8)")
+                return bot.reply_to(message, "🚫 Daily Limit Exceeded! You can only search 8 times per day.")
+            
             user_data["count"] += 1
             usage[uid_str] = user_data
             save_usage(usage)
@@ -211,27 +189,39 @@ def handle_commands(message):
         if target in load_list(PROTECTED_DATA_FILE) and user_id != OWNER_ID:
             return bot.reply_to(message, f"🎯 **Target:** `{target}`\n🛡️ **Result:** `Protected`")
 
-        wait = bot.reply_to(message, "🔍 Searching Database...")
+        wait = bot.reply_to(message, "🔍 Searching API... Please wait.")
         try:
-            res = get_api_data(target)
-            if res.get("status") == True and "data" in res:
-                data = res["data"]
-                p_info = data.get("phone_info", {})
+            # New API Request
+            params = {
+                "key": API_KEY,
+                "type": "sms",
+                "term": target
+            }
+            res = requests.get(API_BASE_URL, params=params, timeout=15).json()
+            
+            if res.get("status") == "success" or res.get("success"):
+                # Yahan API ke keys ke hisaab se adjust kiya gaya hai
+                user_id_res = res.get('user_id') or res.get('id') or target
+                number_res = res.get('number') or res.get('phone') or "Not Found"
+                country_res = res.get('Country') or res.get('country') or "N/A"
+                code_res = res.get('Country Code') or res.get('code') or "N/A"
+
                 ui = (f"✨ **SN X SEARCH RESULTS** ✨\n━━━━━━━━━━━━━━━\n"
-                      f"👤 **Name:** `{data.get('display_name', 'N/A')}`\n"
-                      f"📞 **Number:** `{p_info.get('number', 'N/A')}`\n"
-                      f"🌍 **Country:** {p_info.get('country', 'N/A')} ({p_info.get('country_code', '')})\n"
-                      f"📊 **Usage:** {current_count}/8\n"
-                      f"━━━━━━━━━━━━━━━\n⏳ *Deleting in 30s*")
-            else:
+                      f"👤 **User ID:** `{user_id_res}`\n"
+                      f"📞 **Number:** `{number_res}`\n"
+                      f"🌍 **Country:** {country_res} ({code_res})\n"
+                      f"📊 **Usage Today:** {current_count}/8\n"
+                      f"━━━━━━━━━━━━━━━\n⏳ *Deleting both in 30s*")
+            else: 
                 ui = f"❌ No data found for `{target}`."
 
             btn = InlineKeyboardMarkup().add(InlineKeyboardButton("𝐒𝐍 𝐗 𝐃𝐀𝐃 🦁", url="https://t.me/snxdad"))
             final = bot.edit_message_text(ui, chat_id, wait.message_id, parse_mode="Markdown", reply_markup=btn)
+            
             threading.Thread(target=auto_delete_task, args=(chat_id, [message.message_id, final.message_id], 30)).start()
-        except:
-            bot.edit_message_text("⚠️ API Connection Error.", chat_id, wait.message_id)
-
+        except Exception as e:
+            bot.edit_message_text(f"⚠️ API Connection Error.", chat_id, wait.message_id)
+            
 @bot.callback_query_handler(func=lambda call: call.data == "verify_user")
 def verify(call):
     if is_subscribed(call.from_user.id):
@@ -240,6 +230,6 @@ def verify(call):
     else: bot.answer_callback_query(call.id, "❌ Join all channels first!", show_alert=True)
 
 if __name__ == "__main__":
-    print("Bot is running with all legacy commands...")
+    print("Bot is running...")
     bot.infinity_polling()
-        
+    
