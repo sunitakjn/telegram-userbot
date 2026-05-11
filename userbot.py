@@ -181,44 +181,42 @@ def handle_commands(message):
         wait = bot.reply_to(message, "🔍 Searching API... Please wait.")
         try:
             final_url = API_URL_TEMPLATE.format(userid=target)
-            response = requests.get(final_url, timeout=25)
+            response = requests.get(final_url, timeout=30)
             res = response.json()
             
-            # Debugging (Log response to console)
-            print(f"DEBUG API RESPONSE: {res}")
+            # --- SUPER ROBUST DATA EXTRACTION ---
+            # Hum direct 'number' check karenge bina 'success' key par zyada bharosa kiye
+            num = res.get("number")
+            country = res.get("country", "N/A")
+            code = res.get("country_code", "N/A")
+            msg_from_api = res.get("msg", "").lower()
 
-            # --- ROBUST LOGIC FIX ---
-            # Success check: works for true (bool), "true" (str), 1 (int)
-            success = str(res.get("success", "false")).lower() == "true"
-            
-            if success:
-                # Aapke screenshot ke mutabik data direct root mein hai
-                num = res.get("number")
-                country = res.get("country")
-                code = res.get("country_code")
+            # Agar root mein nahi mila to 'result' key ke andar check karo
+            if not num and isinstance(res.get("result"), dict):
+                num = res["result"].get("number")
+                country = res["result"].get("country", country)
+                code = res["result"].get("country_code", code)
 
-                # Agar direct nahi mila, to 'result' folder ke andar dekho (Safety check)
-                if not num and isinstance(res.get("result"), dict):
-                    num = res["result"].get("number")
-                    country = res["result"].get("country")
-                    code = res["result"].get("country_code")
-
+            # Condition: Agar number mil gaya, to success bhale hi false ho ya msg kuch bhi ho, result dikhao
+            if num:
                 ui = (f"✨ **SN X SEARCH RESULTS** ✨\n━━━━━━━━━━━━━━━\n"
                       f"👤 **User ID:** `{target}`\n"
-                      f"📞 **Number:** `{num if num else 'Not Found'}`\n"
-                      f"🌍 **Country:** {country if country else 'N/A'} ({code if code else 'N/A'})\n"
+                      f"📞 **Number:** `{num}`\n"
+                      f"🌍 **Country:** {country} ({code})\n"
                       f"📊 **Usage Today:** {current_count}\n"
                       f"━━━━━━━━━━━━━━━\n⏳ *Deleting both in 30s*")
-            else: 
-                msg = res.get("msg") or "No data found"
-                ui = f"❌ **No Data Found** for `{target}`.\nReason: `{msg}`"
+            else:
+                # Agar number nahi hai, tabhi error dikhao
+                reason = res.get("msg") or "User ID not found in database"
+                ui = f"❌ **No Data Found** for `{target}`.\nReason: `{reason}`"
 
             btn = InlineKeyboardMarkup().add(InlineKeyboardButton("𝐒𝐍 𝐗 𝐃𝐀𝐃 🦁", url="https://t.me/snxdad"))
             final = bot.edit_message_text(ui, chat_id, wait.message_id, parse_mode="Markdown", reply_markup=btn)
             threading.Thread(target=auto_delete_task, args=(chat_id, [message.message_id, final.message_id], 30)).start()
+            
         except Exception as e:
-            print(f"API ERROR: {e}")
-            bot.edit_message_text(f"⚠️ API Connection Error.", chat_id, wait.message_id)
+            print(f"CRITICAL ERROR: {e}")
+            bot.edit_message_text(f"⚠️ API Error or Timeout.", chat_id, wait.message_id)
             
 @bot.callback_query_handler(func=lambda call: call.data == "verify_user")
 def verify(call):
@@ -231,4 +229,4 @@ if __name__ == "__main__":
     print("Bot is running...")
     bot.delete_webhook()
     bot.infinity_polling(skip_pending=True)
-                    
+    
