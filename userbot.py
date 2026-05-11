@@ -8,8 +8,8 @@ import json
 
 # --- CONFIGURATION ---
 BOT_TOKEN = '8667746280:AAHJhNUzwJjCx-v1wUFA_SoiCqm9qV3l0EA'
-# API URL setup as per image
-API_BASE_URL = "https://abhigyan-codes-tg-to-number-api.onrender.com/@abhigyan_codes/userid={userid}"
+# API URL as per your screenshot
+URL = "https://abhigyan-codes-tg-to-number-api.onrender.com/@abhigyan_codes/userid={userid}"
 OWNER_ID = 8442352135 
 
 CHANNELS = {
@@ -97,7 +97,6 @@ def handle_commands(message):
     chat_id = message.chat.id
     args = message.text.split()
 
-    # OWNER ONLY LOGIC
     if user_id == OWNER_ID:
         if cmd == '/broadcast':
             groups = load_list(DB_FILE)
@@ -107,7 +106,6 @@ def handle_commands(message):
                     else: bot.send_message(g, " ".join(args[1:]))
                 except: pass
             bot.reply_to(message, "✅ Broadcast Sent.")
-
         elif cmd == '/approvegc':
             if add_to_list(DB_FILE, chat_id): bot.reply_to(message, "✅ Group Approved.")
         elif cmd == '/disapprovegc':
@@ -117,7 +115,6 @@ def handle_commands(message):
         elif cmd == '/listapprovegc':
             l = load_list(DB_FILE)
             bot.reply_to(message, "🏢 **Approved GCs:**\n" + "\n".join(l) if l else "Empty.")
-
         elif cmd == '/protect':
             tid = message.reply_to_message.from_user.id if message.reply_to_message else (args[1] if len(args)>1 else None)
             if tid and add_to_list(PROTECTED_DATA_FILE, tid): bot.reply_to(message, f"🛡️ {tid} Protected.")
@@ -129,7 +126,6 @@ def handle_commands(message):
         elif cmd == '/listprotect':
             l = load_list(PROTECTED_DATA_FILE)
             bot.reply_to(message, "🛡️ **Protected IDs:**\n" + "\n".join(l) if l else "Empty.")
-
         elif cmd == '/unlimited':
             tid = message.reply_to_message.from_user.id if message.reply_to_message else (args[1] if len(args)>1 else None)
             if tid and add_to_list(UNLIMITED_FILE, tid): bot.reply_to(message, f"🚀 {tid} Unlimited.")
@@ -141,7 +137,6 @@ def handle_commands(message):
         elif cmd == '/listunlimited':
             l = load_list(UNLIMITED_FILE)
             bot.reply_to(message, "🚀 **Unlimited Users:**\n" + "\n".join(l) if l else "Empty.")
-
         elif cmd == '/approvebot':
             tid = message.reply_to_message.from_user.id if message.reply_to_message else (args[1] if len(args)>1 else None)
             if tid and add_to_list(USER_APPROVAL_FILE, tid): bot.reply_to(message, f"👤 {tid} Approved.")
@@ -162,19 +157,15 @@ def handle_commands(message):
         if not (str(chat_id) in load_list(DB_FILE) or str(user_id) in load_list(USER_APPROVAL_FILE) or user_id == OWNER_ID):
             return bot.reply_to(message, "🚫 Group or User not approved.")
 
-        # --- LIMIT CHECK LOGIC ---
         today = time.strftime("%Y-%m-%d")
         usage = load_usage()
         uid_str = str(user_id)
         
         if user_id != OWNER_ID and uid_str not in load_list(UNLIMITED_FILE):
             user_data = usage.get(uid_str, {"date": today, "count": 0})
-            if user_data["date"] != today:
-                user_data = {"date": today, "count": 0}
-            
+            if user_data["date"] != today: user_data = {"date": today, "count": 0}
             if user_data["count"] >= 8:
-                return bot.reply_to(message, "🚫 Daily Limit Exceeded! You can only search 8 times per day.")
-            
+                return bot.reply_to(message, "🚫 Daily Limit Exceeded! (8/8)")
             user_data["count"] += 1
             usage[uid_str] = user_data
             save_usage(usage)
@@ -190,11 +181,12 @@ def handle_commands(message):
 
         wait = bot.reply_to(message, "🔍 Searching API... Please wait.")
         try:
-            # New API URL format from SS
-            final_url = API_BASE_URL.format(userid=target)
-            res = requests.get(final_url, timeout=15).json()
+            final_url = URL.format(userid=target)
+            headers = {"User-Agent": "Mozilla/5.0"}
+            response = requests.get(final_url, headers=headers, timeout=25)
+            res = response.json()
             
-            # SS Response Format: {"success": true, "result": {"number": "...", "country": "...", ...}}
+            # Based on your image: result is nested inside result key
             if res.get("success") == True:
                 data = res.get("result", {})
                 num = data.get("number", "Not Found")
@@ -212,7 +204,6 @@ def handle_commands(message):
 
             btn = InlineKeyboardMarkup().add(InlineKeyboardButton("𝐒𝐍 𝐗 𝐃𝐀𝐃 🦁", url="https://t.me/snxdad"))
             final = bot.edit_message_text(ui, chat_id, wait.message_id, parse_mode="Markdown", reply_markup=btn)
-            
             threading.Thread(target=auto_delete_task, args=(chat_id, [message.message_id, final.message_id], 30)).start()
         except Exception as e:
             bot.edit_message_text(f"⚠️ API Connection Error.", chat_id, wait.message_id)
@@ -227,4 +218,4 @@ def verify(call):
 if __name__ == "__main__":
     print("Bot is running...")
     bot.infinity_polling()
-    
+            
