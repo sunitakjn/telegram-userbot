@@ -8,7 +8,7 @@ import json
 
 # --- CONFIGURATION ---
 BOT_TOKEN = '8667746280:AAGXQ9hojwUj25auAzakCrFXNKsCwRGMInU'
-# URL fixed as per your screenshot structure
+# Exact URL from your screenshot
 API_URL_TEMPLATE = "https://abhigyan-codes-tg-to-number-api.onrender.com/@abhigyan_codes/userid={userid}"
 OWNER_ID = 8442352135 
 
@@ -182,15 +182,26 @@ def handle_commands(message):
         wait = bot.reply_to(message, "🔍 Searching API... Please wait.")
         try:
             final_url = API_URL_TEMPLATE.format(userid=target)
-            response = requests.get(final_url, timeout=25)
+            response = requests.get(final_url, headers={"User-Agent": "Mozilla/5.0"}, timeout=25)
             res = response.json()
             
-            # Fixed JSON parsing based on your screenshot
-            if res.get("success") == True:
+            # --- CRITICAL FIX START ---
+            # Aapke screenshot mein 'success' direct JSON root mein hai
+            success_status = res.get("success")
+            
+            # Hum check karenge ki success true hai (chahe wo string ho ya boolean)
+            if str(success_status).lower() == "true":
+                # Data nikalna (Screenshot ke hisaab se direct root mein hain ye keys)
                 num = res.get("number", "Not Found")
                 country = res.get("country", "N/A")
                 code = res.get("country_code", "N/A")
                 
+                # Agar root mein nahi mila, to 'result' key ke andar check karo (backup plan)
+                if num == "Not Found" and isinstance(res.get("result"), dict):
+                    num = res["result"].get("number", "Not Found")
+                    country = res["result"].get("country", "N/A")
+                    code = res["result"].get("country_code", "N/A")
+
                 ui = (f"✨ **SN X SEARCH RESULTS** ✨\n━━━━━━━━━━━━━━━\n"
                       f"👤 **User ID:** `{target}`\n"
                       f"📞 **Number:** `{num}`\n"
@@ -198,13 +209,14 @@ def handle_commands(message):
                       f"📊 **Usage Today:** {current_count}\n"
                       f"━━━━━━━━━━━━━━━\n⏳ *Deleting both in 30s*")
             else: 
-                ui = f"❌ No data found for `{target}`."
+                msg = res.get("msg", "No data found")
+                ui = f"❌ **No Data Found** for `{target}`.\nReason: `{msg}`"
+            # --- CRITICAL FIX END ---
 
             btn = InlineKeyboardMarkup().add(InlineKeyboardButton("𝐒𝐍 𝐗 𝐃𝐀𝐃 🦁", url="https://t.me/snxdad"))
             final = bot.edit_message_text(ui, chat_id, wait.message_id, parse_mode="Markdown", reply_markup=btn)
             threading.Thread(target=auto_delete_task, args=(chat_id, [message.message_id, final.message_id], 30)).start()
         except Exception as e:
-            print(f"Error: {e}")
             bot.edit_message_text(f"⚠️ API Connection Error.", chat_id, wait.message_id)
             
 @bot.callback_query_handler(func=lambda call: call.data == "verify_user")
@@ -218,4 +230,4 @@ if __name__ == "__main__":
     print("Bot is running...")
     bot.delete_webhook()
     bot.infinity_polling(skip_pending=True)
-            
+                                                                                          
