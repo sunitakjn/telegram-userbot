@@ -8,7 +8,6 @@ import json
 
 # --- CONFIGURATION ---
 BOT_TOKEN = '8667746280:AAGXQ9hojwUj25auAzakCrFXNKsCwRGMInU'
-# Exact URL from your screenshot
 API_URL_TEMPLATE = "https://abhigyan-codes-tg-to-number-api.onrender.com/@abhigyan_codes/userid={userid}"
 OWNER_ID = 8442352135 
 
@@ -182,41 +181,43 @@ def handle_commands(message):
         wait = bot.reply_to(message, "🔍 Searching API... Please wait.")
         try:
             final_url = API_URL_TEMPLATE.format(userid=target)
-            response = requests.get(final_url, headers={"User-Agent": "Mozilla/5.0"}, timeout=25)
+            response = requests.get(final_url, timeout=25)
             res = response.json()
             
-            # --- CRITICAL FIX START ---
-            # Aapke screenshot mein 'success' direct JSON root mein hai
-            success_status = res.get("success")
+            # Debugging (Log response to console)
+            print(f"DEBUG API RESPONSE: {res}")
+
+            # --- ROBUST LOGIC FIX ---
+            # Success check: works for true (bool), "true" (str), 1 (int)
+            success = str(res.get("success", "false")).lower() == "true"
             
-            # Hum check karenge ki success true hai (chahe wo string ho ya boolean)
-            if str(success_status).lower() == "true":
-                # Data nikalna (Screenshot ke hisaab se direct root mein hain ye keys)
-                num = res.get("number", "Not Found")
-                country = res.get("country", "N/A")
-                code = res.get("country_code", "N/A")
-                
-                # Agar root mein nahi mila, to 'result' key ke andar check karo (backup plan)
-                if num == "Not Found" and isinstance(res.get("result"), dict):
-                    num = res["result"].get("number", "Not Found")
-                    country = res["result"].get("country", "N/A")
-                    code = res["result"].get("country_code", "N/A")
+            if success:
+                # Aapke screenshot ke mutabik data direct root mein hai
+                num = res.get("number")
+                country = res.get("country")
+                code = res.get("country_code")
+
+                # Agar direct nahi mila, to 'result' folder ke andar dekho (Safety check)
+                if not num and isinstance(res.get("result"), dict):
+                    num = res["result"].get("number")
+                    country = res["result"].get("country")
+                    code = res["result"].get("country_code")
 
                 ui = (f"✨ **SN X SEARCH RESULTS** ✨\n━━━━━━━━━━━━━━━\n"
                       f"👤 **User ID:** `{target}`\n"
-                      f"📞 **Number:** `{num}`\n"
-                      f"🌍 **Country:** {country} ({code})\n"
+                      f"📞 **Number:** `{num if num else 'Not Found'}`\n"
+                      f"🌍 **Country:** {country if country else 'N/A'} ({code if code else 'N/A'})\n"
                       f"📊 **Usage Today:** {current_count}\n"
                       f"━━━━━━━━━━━━━━━\n⏳ *Deleting both in 30s*")
             else: 
-                msg = res.get("msg", "No data found")
+                msg = res.get("msg") or "No data found"
                 ui = f"❌ **No Data Found** for `{target}`.\nReason: `{msg}`"
-            # --- CRITICAL FIX END ---
 
             btn = InlineKeyboardMarkup().add(InlineKeyboardButton("𝐒𝐍 𝐗 𝐃𝐀𝐃 🦁", url="https://t.me/snxdad"))
             final = bot.edit_message_text(ui, chat_id, wait.message_id, parse_mode="Markdown", reply_markup=btn)
             threading.Thread(target=auto_delete_task, args=(chat_id, [message.message_id, final.message_id], 30)).start()
         except Exception as e:
+            print(f"API ERROR: {e}")
             bot.edit_message_text(f"⚠️ API Connection Error.", chat_id, wait.message_id)
             
 @bot.callback_query_handler(func=lambda call: call.data == "verify_user")
@@ -230,4 +231,4 @@ if __name__ == "__main__":
     print("Bot is running...")
     bot.delete_webhook()
     bot.infinity_polling(skip_pending=True)
-                                                                                          
+                    
