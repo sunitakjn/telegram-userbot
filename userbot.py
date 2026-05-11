@@ -8,8 +8,8 @@ import json
 
 # --- CONFIGURATION ---
 BOT_TOKEN = '8667746280:AAHJhNUzwJjCx-v1wUFA_SoiCqm9qV3l0EA'
-# Nayi API details
-URL = "https://abhigyan-codes-tg-to-number-api.onrender.com/@abhigyan_codes/userid={userid}"
+# API URL setup as per image
+API_BASE_URL = "https://abhigyan-codes-tg-to-number-api.onrender.com/@abhigyan_codes/userid={userid}"
 OWNER_ID = 8442352135 
 
 CHANNELS = {
@@ -190,25 +190,21 @@ def handle_commands(message):
 
         wait = bot.reply_to(message, "🔍 Searching API... Please wait.")
         try:
-            # New API Request
-            params = {
-                "key": API_KEY,
-                "type": "sms",
-                "term": target
-            }
-            res = requests.get(API_BASE_URL, params=params, timeout=15).json()
+            # New API URL format from SS
+            final_url = API_BASE_URL.format(userid=target)
+            res = requests.get(final_url, timeout=15).json()
             
-            if res.get("status") == "success" or res.get("success"):
-                # Yahan API ke keys ke hisaab se adjust kiya gaya hai
-                user_id_res = res.get('user_id') or res.get('id') or target
-                number_res = res.get('number') or res.get('phone') or "Not Found"
-                country_res = res.get('Country') or res.get('country') or "N/A"
-                code_res = res.get('Country Code') or res.get('code') or "N/A"
+            # SS Response Format: {"success": true, "result": {"number": "...", "country": "...", ...}}
+            if res.get("success") == True:
+                data = res.get("result", {})
+                num = data.get("number", "Not Found")
+                country = data.get("country", "N/A")
+                code = data.get("country_code", "N/A")
 
                 ui = (f"✨ **SN X SEARCH RESULTS** ✨\n━━━━━━━━━━━━━━━\n"
-                      f"👤 **User ID:** `{user_id_res}`\n"
-                      f"📞 **Number:** `{number_res}`\n"
-                      f"🌍 **Country:** {country_res} ({code_res})\n"
+                      f"👤 **User ID:** `{target}`\n"
+                      f"📞 **Number:** `{num}`\n"
+                      f"🌍 **Country:** {country} ({code})\n"
                       f"📊 **Usage Today:** {current_count}/8\n"
                       f"━━━━━━━━━━━━━━━\n⏳ *Deleting both in 30s*")
             else: 
