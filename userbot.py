@@ -9,8 +9,7 @@ import json
 # --- CONFIGURATION ---
 BOT_TOKEN = '8667746280:AAHJhNUzwJjCx-v1wUFA_SoiCqm9qV3l0EA'
 # Nayi API details
-API_BASE_URL = "http://api.subhxcosmo.in/api"
-API_KEY = "titan"
+URL = "https://abhigyan-codes-tg-to-number-api.onrender.com/@abhigyan_codes/userid={userid}"
 OWNER_ID = 8442352135 
 
 CHANNELS = {
