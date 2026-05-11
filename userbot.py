@@ -8,8 +8,8 @@ import json
 
 # --- CONFIGURATION ---
 BOT_TOKEN = '8667746280:AAHJhNUzwJjCx-v1wUFA_SoiCqm9qV3l0EA'
-# API URL as per your screenshot
-URL = "https://abhigyan-codes-tg-to-number-api.onrender.com/@abhigyan_codes/userid={userid}"
+# API URL (SS ke hisaab se exact)
+URL = "https://abhigyan-codes-tg-to-number-api.onrender.com/@abhigyan_codes/userid="
 OWNER_ID = 8442352135 
 
 CHANNELS = {
@@ -165,7 +165,7 @@ def handle_commands(message):
             user_data = usage.get(uid_str, {"date": today, "count": 0})
             if user_data["date"] != today: user_data = {"date": today, "count": 0}
             if user_data["count"] >= 8:
-                return bot.reply_to(message, "🚫 Daily Limit Exceeded! (8/8)")
+                return bot.reply_to(message, "🚫 Daily Limit Exceeded!")
             user_data["count"] += 1
             usage[uid_str] = user_data
             save_usage(usage)
@@ -182,29 +182,37 @@ def handle_commands(message):
         wait = bot.reply_to(message, "🔍 Searching API... Please wait.")
         try:
             final_url = URL.format(userid=target)
-            headers = {"User-Agent": "Mozilla/5.0"}
-            response = requests.get(final_url, headers=headers, timeout=25)
+            # User-Agent add kiya taaki browser jaisa lage
+            response = requests.get(final_url, headers={"User-Agent": "Mozilla/5.0"}, timeout=25)
             res = response.json()
             
-            # Based on your image: result is nested inside result key
-            if res.get("success") == True:
-                data = res.get("result", {})
+            # API LOGIC (Fixing for the specific structure in your SS)
+            # Structure: {"success": true, "result": {"number": "...", "country": "..."}}
+            success = res.get("success")
+            data = res.get("result")
+
+            if success and data:
                 num = data.get("number", "Not Found")
                 country = data.get("country", "N/A")
                 code = data.get("country_code", "N/A")
+                ts = res.get("timestamp", "N/A")
 
                 ui = (f"✨ **SN X SEARCH RESULTS** ✨\n━━━━━━━━━━━━━━━\n"
                       f"👤 **User ID:** `{target}`\n"
                       f"📞 **Number:** `{num}`\n"
                       f"🌍 **Country:** {country} ({code})\n"
+                      f"🕒 **Time:** `{ts}`\n"
                       f"📊 **Usage Today:** {current_count}/8\n"
                       f"━━━━━━━━━━━━━━━\n⏳ *Deleting both in 30s*")
             else: 
-                ui = f"❌ No data found for `{target}`."
+                # Agar API status false de ya data na mile
+                msg = res.get("msg", "No data found")
+                ui = f"❌ {msg} for `{target}`."
 
             btn = InlineKeyboardMarkup().add(InlineKeyboardButton("𝐒𝐍 𝐗 𝐃𝐀𝐃 🦁", url="https://t.me/snxdad"))
             final = bot.edit_message_text(ui, chat_id, wait.message_id, parse_mode="Markdown", reply_markup=btn)
             threading.Thread(target=auto_delete_task, args=(chat_id, [message.message_id, final.message_id], 30)).start()
+            
         except Exception as e:
             bot.edit_message_text(f"⚠️ API Connection Error.", chat_id, wait.message_id)
             
