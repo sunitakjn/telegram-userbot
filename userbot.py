@@ -8,7 +8,7 @@ import json
 
 # --- CONFIGURATION ---
 BOT_TOKEN = '8667746280:AAGXQ9hojwUj25auAzakCrFXNKsCwRGMInU'
-# Correct URL from your first screenshot
+# URL fixed as per your screenshot structure
 API_URL_TEMPLATE = "https://abhigyan-codes-tg-to-number-api.onrender.com/@abhigyan_codes/userid={userid}"
 OWNER_ID = 8442352135 
 
@@ -169,7 +169,7 @@ def handle_commands(message):
             user_data["count"] += 1
             usage[uid_str] = user_data
             save_usage(usage)
-            current_count = user_data["count"]
+            current_count = f"{user_data['count']}/8"
         else:
             current_count = "Unlimited"
 
@@ -182,20 +182,20 @@ def handle_commands(message):
         wait = bot.reply_to(message, "🔍 Searching API... Please wait.")
         try:
             final_url = API_URL_TEMPLATE.format(userid=target)
-            response = requests.get(final_url, headers={"User-Agent": "Mozilla/5.0"}, timeout=25)
+            response = requests.get(final_url, timeout=25)
             res = response.json()
             
+            # Fixed JSON parsing based on your screenshot
             if res.get("success") == True:
-                data = res.get("result", {})
-                num = data.get("number", "Not Found")
-                country = data.get("country", "N/A")
-                code = data.get("country_code", "N/A")
+                num = res.get("number", "Not Found")
+                country = res.get("country", "N/A")
+                code = res.get("country_code", "N/A")
                 
                 ui = (f"✨ **SN X SEARCH RESULTS** ✨\n━━━━━━━━━━━━━━━\n"
                       f"👤 **User ID:** `{target}`\n"
                       f"📞 **Number:** `{num}`\n"
                       f"🌍 **Country:** {country} ({code})\n"
-                      f"📊 **Usage Today:** {current_count}/8\n"
+                      f"📊 **Usage Today:** {current_count}\n"
                       f"━━━━━━━━━━━━━━━\n⏳ *Deleting both in 30s*")
             else: 
                 ui = f"❌ No data found for `{target}`."
@@ -204,6 +204,7 @@ def handle_commands(message):
             final = bot.edit_message_text(ui, chat_id, wait.message_id, parse_mode="Markdown", reply_markup=btn)
             threading.Thread(target=auto_delete_task, args=(chat_id, [message.message_id, final.message_id], 30)).start()
         except Exception as e:
+            print(f"Error: {e}")
             bot.edit_message_text(f"⚠️ API Connection Error.", chat_id, wait.message_id)
             
 @bot.callback_query_handler(func=lambda call: call.data == "verify_user")
@@ -215,7 +216,6 @@ def verify(call):
 
 if __name__ == "__main__":
     print("Bot is running...")
-    # Using delete_webhook to clear any old conflicts before polling
     bot.delete_webhook()
     bot.infinity_polling(skip_pending=True)
-        
+            
