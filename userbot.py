@@ -9,6 +9,7 @@ import json
 # --- CONFIGURATION ---
 BOT_TOKEN = '8667746280:AAGXQ9hojwUj25auAzakCrFXNKsCwRGMInU'
 API_URL = "https://tg-num-api.onrender.com/tg"
+API_KEY = "YOUR_API_KEY_HERE"
 OWNER_ID = 8442352135 
 
 CHANNELS = {
@@ -158,7 +159,7 @@ def handle_commands(message):
             l = load_list(USER_APPROVAL_FILE)
             bot.reply_to(message, "👤 **Personal Users:**\n" + "\n".join(l) if l else "Empty.")
 
-        # --- SEARCH COMMAND (/tg) ---
+    # --- SEARCH COMMAND (/tg) ---
     if cmd == '/tg':
         if not is_subscribed(user_id):
             return bot.reply_to(message, "⚠️ Join Channels First:", reply_markup=get_join_markup())
@@ -171,18 +172,14 @@ def handle_commands(message):
         usage = load_usage()
         uid_str = str(user_id)
         
-        # Owner aur Unlimited users ko skip karega
         if user_id != OWNER_ID and uid_str not in load_list(UNLIMITED_FILE):
             user_data = usage.get(uid_str, {"date": today, "count": 0})
-            
-            # Agar din badal gaya hai toh count reset karein
             if user_data["date"] != today:
                 user_data = {"date": today, "count": 0}
             
             if user_data["count"] >= 10:
-                return bot.reply_to(message, "🚫 Daily Limit Exceeded! You can only search 8 times per day.")
+                return bot.reply_to(message, "🚫 Daily Limit Exceeded! You can only search 10 times per day.")
             
-            # Count badhayein aur save karein
             user_data["count"] += 1
             usage[uid_str] = user_data
             save_usage(usage)
@@ -191,28 +188,48 @@ def handle_commands(message):
             current_count = "Unlimited"
         # -------------------------
 
-        target = str(message.reply_to_message.from_user.id) if message.reply_to_message else (args[1] if len(args)>1 else None)
-        if not target: return bot.reply_to(message, "Usage: `/tg {id}` or reply.")
+        # --- TARGET RESOLUTION (REPLY, ID, USERNAME) ---
+        target = None
+        if message.reply_to_message:
+            target = str(message.reply_to_message.from_user.id)
+        elif len(args) > 1:
+            raw_target = args[1]
+            if raw_target.startswith('@'):
+                try:
+                    # Username se ID nikalne ki koshish
+                    chat_info = bot.get_chat(raw_target)
+                    target = str(chat_info.id)
+                except Exception:
+                    return bot.reply_to(message, "❌ Invalid Username ya Bot ne us user ko encounter nahi kiya.")
+            else:
+                target = raw_target
+
+        if not target: 
+            return bot.reply_to(message, "ℹ️ **Usage:** `/tg {id}` ya `/tg @username` ya kisi message par reply karein.")
 
         if target in load_list(PROTECTED_DATA_FILE) and user_id != OWNER_ID:
             return bot.reply_to(message, f"🎯 **Target:** `{target}`\n🛡️ **Result:** `❌ No Data Found`")
 
         wait = bot.reply_to(message, "🔍 Searching API... Please wait.")
         try:
-            res = requests.get(f"{API_URL}?id={target}", timeout=10).json()
+            # API Query me API Key pass karne ke liye URL params ya headers use karein:
+            # (Aapki API ke mutabiq aap params={} ya headers={} change kar sakte hain)
+            params = {"id": target, "key": API_KEY} 
+            res = requests.get(API_URL, params=params, timeout=10).json()
+
             if res.get("success"):
                 ui = (f"✨ **SN X OSINT RESULTS** ✨\n━━━━━━━━━━━━━━━\n"
                       f"👤 **User ID:** `{res.get('user_id')}`\n"
                       f"📞 **Number:** `{res.get('number')}`\n"
                       f"🌍 **Country:** {res.get('Country')} ({res.get('Country Code')})\n"
-                      f"📊 **Usage Today:** {current_count}/10\n" # Limit dikhane ke liye
+                      f"📊 **Usage Today:** {current_count}/10\n"
                       f"━━━━━━━━━━━━━━━\n⏳ *Deleting both in 30s*")
-            else: ui = f"❌ No Data Found `{target}`."
+            else: 
+                ui = f"❌ No Data Found `{target}`."
 
             btn = InlineKeyboardMarkup().add(InlineKeyboardButton("𝐒𝐍 𝐗 𝐃𝐀𝐃", url="https://t.me/snxdad"))
             final = bot.edit_message_text(ui, chat_id, wait.message_id, parse_mode="Markdown", reply_markup=btn)
             
-            # Auto Delete Trigger
             threading.Thread(target=auto_delete_task, args=(chat_id, [message.message_id, final.message_id], 30)).start()
         except:
             bot.edit_message_text("⚠️ API Connection Error.", chat_id, wait.message_id)
@@ -222,9 +239,10 @@ def verify(call):
     if is_subscribed(call.from_user.id):
         bot.answer_callback_query(call.id, "✅ Verified !")
         bot.delete_message(call.message.chat.id, call.message.message_id)
-    else: bot.answer_callback_query(call.id, "❌ Join All Channels First !", show_alert=True)
+    else: 
+        bot.answer_callback_query(call.id, "❌ Join All Channels First !", show_alert=True)
 
 if __name__ == "__main__":
     print("Bot is running...")
     bot.infinity_polling()
-    
+        
