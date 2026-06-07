@@ -7,7 +7,7 @@ import time
 import json
 
 # --- CONFIGURATION ---
-BOT_TOKEN = '8667746280:AAGXQ9hojwUj25auAzakCrFXNKsCwRGMInU'
+BOT_TOKEN = '8667746280:AAGXQ9hojwUj25auAzakCrFXNKsCwRGMIn'
 API_URL = "https://tg-num-api.onrender.com/tg"
 API_KEY = "YOUR_API_KEY_HERE"
 OWNER_ID = 8442352135 
