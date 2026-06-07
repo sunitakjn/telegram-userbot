@@ -100,57 +100,13 @@ def handle_commands(message):
     if user_id == OWNER_ID:
         # Broadcast
         if cmd == '/broadcast':
-    groups = load_list(DB_FILE)
-
-    success = 0
-    failed = 0
-
-    success_list = []
-    failed_list = []
-
-    for g in groups:
-        try:
-            if message.reply_to_message:
-                bot.copy_message(
-                    int(g),
-                    chat_id,
-                    message.reply_to_message.message_id
-                )
-            else:
-                bot.send_message(
-                    int(g),
-                    " ".join(args[1:])
-                )
-
-            success += 1
-
-            try:
-                chat = bot.get_chat(int(g))
-                success_list.append(chat.title)
-            except:
-                success_list.append(str(g))
-
-        except:
-            failed += 1
-            failed_list.append(str(g))
-
-    report = (
-        f"📢 Broadcast Report\n\n"
-        f"✅ Success : {success}\n"
-        f"❌ Failed : {failed}\n"
-        f"📂 Total : {len(groups)}\n\n"
-    )
-
-    if success_list:
-        report += "✅ Sent To:\n"
-        report += "\n".join([f"• {x}" for x in success_list[:30]])
-        report += "\n\n"
-
-    if failed_list:
-        report += "❌ Failed GCs:\n"
-        report += "\n".join([f"• {x}" for x in failed_list[:30]])
-
-    bot.reply_to(message, report)
+            groups = load_list(DB_FILE)
+            for g in groups:
+                try:
+                    if message.reply_to_message: bot.copy_message(g, chat_id, message.reply_to_message.message_id)
+                    else: bot.send_message(g, " ".join(args[1:]))
+                except: pass
+            bot.reply_to(message, "✅ Broadcast Sent.")
 
         # GC Management
         elif cmd == '/approvegc':
@@ -160,30 +116,8 @@ def handle_commands(message):
         elif cmd == '/disapprovegcall':
             clear_file(DB_FILE); bot.reply_to(message, "🗑️ All GC Removed.")
         elif cmd == '/listapprovegc':
-
-    groups = load_list(DB_FILE)
-
-    if not groups:
-        return bot.reply_to(message, "No Approved Groups.")
-
-    text = "🏢 Approved Groups\n\n"
-
-    for gid in groups:
-        try:
-            chat = bot.get_chat(int(gid))
-
-            text += (
-                f"📌 Name : {chat.title}\n"
-                f"🆔 ID : {gid}\n\n"
-            )
-
-        except:
-            text += (
-                f"📌 Name : Unknown\n"
-                f"🆔 ID : {gid}\n\n"
-            )
-
-    bot.reply_to(message, text)
+            l = load_list(DB_FILE)
+            bot.reply_to(message, "🏢 **Approved GCs:**\n" + "\n".join(l) if l else "Empty.")
 
         # Protect Logic
         elif cmd == '/protect':
@@ -195,35 +129,8 @@ def handle_commands(message):
         elif cmd == '/unprotectall':
             clear_file(PROTECTED_DATA_FILE); bot.reply_to(message, "🗑️ All Unprotected.")
         elif cmd == '/listprotect':
-
-    users = load_list(PROTECTED_DATA_FILE)
-
-    if not users:
-        return bot.reply_to(message, "No Protected Users.")
-
-    text = "🛡 Protected Users\n\n"
-
-    for uid in users:
-
-        try:
-            user = bot.get_chat(int(uid))
-
-            username = (
-                f"@{user.username}"
-                if user.username
-                else "No Username"
-            )
-
-            text += (
-                f"👤 Name : {user.first_name}\n"
-                f"🔗 Username : {username}\n"
-                f"🆔 ID : {uid}\n\n"
-            )
-
-        except:
-            text += f"🆔 ID : {uid}\n\n"
-
-    bot.reply_to(message, text)
+            l = load_list(PROTECTED_DATA_FILE)
+            bot.reply_to(message, "🛡️ **Protected IDs:**\n" + "\n".join(l) if l else "Empty.")
 
         # Unlimited Usage
         elif cmd == '/unlimited':
@@ -235,35 +142,8 @@ def handle_commands(message):
         elif cmd == '/disunlimitedall':
             clear_file(UNLIMITED_FILE); bot.reply_to(message, "🗑️ Unlimited List Cleared.")
         elif cmd == '/listunlimited':
-
-    users = load_list(UNLIMITED_FILE)
-
-    if not users:
-        return bot.reply_to(message, "No Unlimited Users.")
-
-    text = "🚀 Unlimited Users\n\n"
-
-    for uid in users:
-
-        try:
-            user = bot.get_chat(int(uid))
-
-            username = (
-                f"@{user.username}"
-                if user.username
-                else "No Username"
-            )
-
-            text += (
-                f"👤 Name : {user.first_name}\n"
-                f"🔗 Username : {username}\n"
-                f"🆔 ID : {uid}\n\n"
-            )
-
-        except:
-            text += f"🆔 ID : {uid}\n\n"
-
-    bot.reply_to(message, text)
+            l = load_list(UNLIMITED_FILE)
+            bot.reply_to(message, "🚀 **Unlimited Users:**\n" + "\n".join(l) if l else "Empty.")
 
         # Personal Access
         elif cmd == '/approvebot':
@@ -275,35 +155,8 @@ def handle_commands(message):
         elif cmd == '/disapprovebotall':
             clear_file(USER_APPROVAL_FILE); bot.reply_to(message, "🗑️ Personal List Cleared.")
         elif cmd == '/listapprovebot':
-
-    users = load_list(USER_APPROVAL_FILE)
-
-    if not users:
-        return bot.reply_to(message, "No Approved Users.")
-
-    text = "👤 Approved Users\n\n"
-
-    for uid in users:
-
-        try:
-            user = bot.get_chat(int(uid))
-
-            username = (
-                f"@{user.username}"
-                if user.username
-                else "No Username"
-            )
-
-            text += (
-                f"👤 Name : {user.first_name}\n"
-                f"🔗 Username : {username}\n"
-                f"🆔 ID : {uid}\n\n"
-            )
-
-        except:
-            text += f"🆔 ID : {uid}\n\n"
-
-    bot.reply_to(message, text)
+            l = load_list(USER_APPROVAL_FILE)
+            bot.reply_to(message, "👤 **Personal Users:**\n" + "\n".join(l) if l else "Empty.")
 
         # --- SEARCH COMMAND (/tg) ---
     if cmd == '/tg':
