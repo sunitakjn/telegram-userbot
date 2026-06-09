@@ -278,24 +278,32 @@ def handle_commands(message):
 
         wait = bot.reply_to(message, "🔍 Searching API... Please wait.")
         try:
-            # API Request
-            res = requests.get(f"{API_URL}?id={target}", timeout=10).json()
+            # FIX: Added API key here (?key={API_KEY})
+            res = requests.get(f"{API_URL}?key={API_KEY}&id={target}", timeout=10).json()
             
-            # PARSING LOGIC UPDATED BASED ON SCREENSHOT
+            # PARSING LOGIC BASED ON NEW SCREENSHOT
             if res.get("success") and "data" in res:
                 api_data = res.get("data", {})
                 
-                tg_id = api_data.get("tg_id", "N/A")
-                number = api_data.get("number", "N/A")
-                country = api_data.get("country", "N/A")
-                country_code = api_data.get("country_code", "N/A")
+                # Double Safety: Agar data string format me ho toh use dict me badlein
+                if isinstance(api_data, str):
+                    try: api_data = json.loads(api_data)
+                    except: api_data = {}
 
-                ui = (f"✨ **SN X OSINT RESULTS** ✨\n━━━━━━━━━━━━━━━\n"
-                      f"👤 **User ID:** `{tg_id}`\n"
-                      f"📞 **Number:** `{number}`\n"
-                      f"🌍 **Country:** {country} ({country_code})\n"
-                      f"📊 **Usage Today:** {current_count}\n"
-                      f"━━━━━━━━━━━━━━━\n⏳ *Deleting both in 30s*")
+                if api_data:
+                    tg_id = api_data.get("tg_id", "N/A")
+                    number = api_data.get("number", "N/A")
+                    country = api_data.get("country", "N/A")
+                    country_code = api_data.get("country_code", "N/A")
+
+                    ui = (f"✨ **SN X OSINT RESULTS** ✨\n━━━━━━━━━━━━━━━\n"
+                          f"👤 **User ID:** `{tg_id}`\n"
+                          f"📞 **Number:** `{number}`\n"
+                          f"🌍 **Country:** {country} ({country_code})\n"
+                          f"📊 **Usage Today:** {current_count}\n"
+                          f"━━━━━━━━━━━━━━━\n⏳ *Deleting both in 30s*")
+                else:
+                    ui = f"❌ No Data Found `{target}`."
             else: 
                 ui = f"❌ No Data Found `{target}`."
 
@@ -317,4 +325,4 @@ def verify(call):
 if __name__ == "__main__":
     print("Bot is running...")
     bot.infinity_polling()
-                                          
+    
